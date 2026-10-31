@@ -3359,7 +3359,7 @@ func repoHandler(c *td.Client, m *td.Message) error {
 	}
 
 	if devURL == "" {
-		devURL = "https://t.me/Oyekanhaa"
+		devURL = "https://t.me/Team-Kanha"
 	}
 
 	botName := "Kanha Music"
