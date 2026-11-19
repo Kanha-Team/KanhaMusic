@@ -3389,6 +3389,7 @@ func repoHandler(c *td.Client, m *td.Message) error {
 				ParseMode:         td.ParseModeHTML,
 				ReplyMarkup:       markup,
 				SupportsStreaming: true,
+				HasSpoiler:        config.EnableSpoiler,
 			}); err == nil {
 				return nil
 			} else {
@@ -3400,6 +3401,7 @@ func repoHandler(c *td.Client, m *td.Message) error {
 			Caption:     caption,
 			ParseMode:   td.ParseModeHTML,
 			ReplyMarkup: markup,
+			HasSpoiler:  config.EnableSpoiler,
 		}); err == nil {
 			return nil
 		} else {

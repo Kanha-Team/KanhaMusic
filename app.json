@@ -76,6 +76,11 @@
             "value": "false",
             "required": false
         },
+        "ENABLE_SPOILER": {
+            "description": "Enable Telegram spoiler animation on bot images (start, ping, player artwork, repo) when set to true.",
+            "value": "false",
+            "required": false
+        },
         "START_IMAGES": {
             "description": "Optional list of /start image URLs separated by spaces, commas, or semicolons. A random image is used each time.",
             "value": "https://yukiapi.site/file/6RldzdNt",

@@ -149,7 +149,8 @@ func pingHandler(c *td.Client, m *td.Message) error {
 			Photo: &td.InputPhoto{
 				Photo: td.InputFileRemote{Id: config.PingImage},
 			},
-			Caption: caption,
+			Caption:    caption,
+			HasSpoiler: config.EnableSpoiler,
 		}, &td.EditMessageMediaOpts{
 			ReplyMarkup: markup,
 		})

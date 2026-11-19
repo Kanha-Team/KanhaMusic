@@ -116,6 +116,7 @@ func showTrackMessage(
 			Photo: &td.InputPhoto{
 				Photo: td.InputFileRemote{Id: utils.CleanURL(t.Artwork)},
 			},
+			HasSpoiler: config.EnableSpoiler,
 		}
 		if statusMsg != nil {
 			if caption, err := c.GetFormattedText(msgText, nil, "HTML"); err == nil {
@@ -142,6 +143,7 @@ func showTrackMessage(
 				Caption:     msgText,
 				ParseMode:   "HTML",
 				ReplyMarkup: markup,
+				HasSpoiler:  config.EnableSpoiler,
 			},
 		)
 		if err != nil {
