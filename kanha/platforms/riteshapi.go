@@ -29,6 +29,7 @@ import (
 	"net/url"
 	"os"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -198,77 +199,7 @@ func (r *RiteshApiPlatform) CanGet(query string) bool {
 
 // Get resolves media using Ritesh API's multi-platform extractor.
 func (r *RiteshApiPlatform) Get(query string, video bool) ([]*state.Track, error) {
-	if config.RiteshAPIKey == "" {
-		return nil, errors.New("riteshapi: api key is required for multi-platform extraction")
-	}
-
-	apiURL := getRiteshBaseURL()
-	reqURL := fmt.Sprintf("%s/api/platform/extract?url=%s&api_key=%s",
-		apiURL, url.QueryEscape(strings.TrimSpace(query)), url.QueryEscape(config.RiteshAPIKey))
-
-	var resp struct {
-		Success     bool   `json:"success"`
-		Platform    string `json:"platform"`
-		ID          string `json:"id"`
-		Title       string `json:"title"`
-		Description string `json:"description"`
-		Thumbnail   string `json:"thumbnail"`
-		Duration    int    `json:"duration"`
-		MediaType   string `json:"media_type"`
-		DownloadURL string `json:"download_url"`
-		Error       string `json:"error"`
-	}
-
-	rResp, err := rc.R().
-		SetHeader("User-Agent", "KanhaMusic/1.0").
-		SetResult(&resp).
-		Get(reqURL)
-	if err != nil {
-		return nil, sanitizeAPIError(fmt.Errorf("riteshapi extract request failed: %w", err), config.RiteshAPIKey)
-	}
-	if rResp.IsStatusFailure() || !resp.Success {
-		errMsg := resp.Error
-		if errMsg == "" {
-			errMsg = fmt.Sprintf("status code %d", rResp.StatusCode())
-		}
-		return nil, fmt.Errorf("riteshapi extract failed: %s", errMsg)
-	}
-
-	trackID := resp.ID
-	if trackID == "" {
-		h := md5.Sum([]byte(query))
-		trackID = hex.EncodeToString(h[:10])
-	}
-
-	title := strings.TrimSpace(resp.Title)
-	if title == "" {
-		if resp.Description != "" {
-			lines := strings.Split(strings.TrimSpace(resp.Description), "\n")
-			if len(lines) > 0 && lines[0] != "" {
-				title = strings.TrimSpace(lines[0])
-			}
-		}
-		if title == "" {
-			if resp.Platform != "" {
-				title = strings.ToUpper(resp.Platform[:1]) + resp.Platform[1:] + " Media"
-			} else {
-				title = "Multi-Platform Track"
-			}
-		}
-	}
-
-	isVideo := video || resp.MediaType == "video"
-	track := &state.Track{
-		ID:       trackID,
-		Title:    title,
-		Duration: resp.Duration,
-		Artwork:  resp.Thumbnail,
-		URL:      query,
-		Video:    isVideo,
-		Source:   PlatformRiteshApi,
-	}
-
-	return []*state.Track{track}, nil
+	return RiteshExtractPlatform(query, video)
 }
 
 // CanDownload reports whether Ritesh API can download tracks from YouTube, Spotify, or RiteshApi.
@@ -439,6 +370,349 @@ func getRiteshBaseURL() string {
 	return u
 }
 
+func parseDurationString(durStr string) int {
+	parts := strings.Split(strings.TrimSpace(durStr), ":")
+	switch len(parts) {
+	case 2:
+		m, _ := strconv.Atoi(parts[0])
+		s, _ := strconv.Atoi(parts[1])
+		return m*60 + s
+	case 3:
+		h, _ := strconv.Atoi(parts[0])
+		m, _ := strconv.Atoi(parts[1])
+		s, _ := strconv.Atoi(parts[2])
+		return h*3600 + m*60 + s
+	default:
+		return 0
+	}
+}
+
+// ============================================================================
+// Official Ritesh API Endpoints (https://www.riteshyt.in/docs)
+// ============================================================================
+
+// RiteshHealth checks system health status via GET /health endpoint.
+func RiteshHealth() (bool, error) {
+	apiURL := getRiteshBaseURL()
+	reqURL := apiURL + "/health"
+
+	var resp struct {
+		Status string `json:"status"`
+	}
+
+	rResp, err := rc.R().
+		SetTimeout(5 * time.Second).
+		SetHeader("User-Agent", "KanhaMusic/1.0").
+		SetResult(&resp).
+		Get(reqURL)
+	if err != nil {
+		return false, err
+	}
+	return !rResp.IsStatusFailure() && (resp.Status == "ok" || resp.Status == "healthy"), nil
+}
+
+// RiteshSearch searches YouTube for tracks via GET /search?q={query}&limit={limit}&api_key={api_key}.
+func RiteshSearch(query string, limit int) ([]*state.Track, error) {
+	if config.RiteshAPIKey == "" {
+		return nil, errors.New("riteshapi: api key is not configured")
+	}
+	if limit <= 0 {
+		limit = 1
+	}
+
+	apiURL := getRiteshBaseURL()
+	reqURL := fmt.Sprintf("%s/search?q=%s&limit=%d&api_key=%s",
+		apiURL, url.QueryEscape(strings.TrimSpace(query)), limit, url.QueryEscape(config.RiteshAPIKey))
+
+	var resp struct {
+		Result []struct {
+			Type       string `json:"type"`
+			ID         string `json:"id"`
+			Title      string `json:"title"`
+			Duration   string `json:"duration"`
+			Thumbnails []struct {
+				URL string `json:"url"`
+			} `json:"thumbnails"`
+			Link string `json:"link"`
+		} `json:"result"`
+	}
+
+	rResp, err := rc.R().
+		SetHeader("User-Agent", "KanhaMusic/1.0").
+		SetResult(&resp).
+		Get(reqURL)
+	if err != nil {
+		return nil, sanitizeAPIError(err, config.RiteshAPIKey)
+	}
+	if rResp.IsStatusFailure() || len(resp.Result) == 0 {
+		return nil, fmt.Errorf("ritesh search failed with HTTP %d", rResp.StatusCode())
+	}
+
+	tracks := make([]*state.Track, 0, len(resp.Result))
+	for _, item := range resp.Result {
+		if item.ID == "" || item.Title == "" {
+			continue
+		}
+		artwork := ""
+		if len(item.Thumbnails) > 0 {
+			artwork = item.Thumbnails[len(item.Thumbnails)-1].URL
+		}
+		link := item.Link
+		if link == "" {
+			link = "https://www.youtube.com/watch?v=" + item.ID
+		}
+		tracks = append(tracks, &state.Track{
+			ID:       item.ID,
+			Title:    item.Title,
+			Duration: parseDurationString(item.Duration),
+			Artwork:  artwork,
+			URL:      link,
+			Source:   PlatformYouTube,
+		})
+	}
+
+	if len(tracks) == 0 {
+		return nil, errors.New("ritesh search returned no valid tracks")
+	}
+	return tracks, nil
+}
+
+// RiteshDetails retrieves single video or Spotify track metadata via GET /details?link={link_or_id}&api_key={api_key}.
+func RiteshDetails(linkOrID string) (*state.Track, error) {
+	if config.RiteshAPIKey == "" {
+		return nil, errors.New("riteshapi: api key is not configured")
+	}
+
+	apiURL := getRiteshBaseURL()
+	reqURL := fmt.Sprintf("%s/details?link=%s&api_key=%s",
+		apiURL, url.QueryEscape(strings.TrimSpace(linkOrID)), url.QueryEscape(config.RiteshAPIKey))
+
+	var resp struct {
+		Title       string `json:"title"`
+		DurationMin string `json:"duration_min"`
+		DurationSec int    `json:"duration_sec"`
+		Thumbnail   string `json:"thumbnail"`
+		VidID       string `json:"vidid"`
+		Link        string `json:"link"`
+	}
+
+	rResp, err := rc.R().
+		SetHeader("User-Agent", "KanhaMusic/1.0").
+		SetResult(&resp).
+		Get(reqURL)
+	if err != nil {
+		return nil, sanitizeAPIError(err, config.RiteshAPIKey)
+	}
+	if rResp.IsStatusFailure() || resp.Title == "" {
+		return nil, fmt.Errorf("ritesh details failed with HTTP %d", rResp.StatusCode())
+	}
+
+	trackID := resp.VidID
+	if trackID == "" {
+		trackID = linkOrID
+	}
+	trackURL := resp.Link
+	if trackURL == "" {
+		trackURL = "https://www.youtube.com/watch?v=" + trackID
+	}
+
+	dur := resp.DurationSec
+	if dur <= 0 && resp.DurationMin != "" {
+		dur = parseDurationString(resp.DurationMin)
+	}
+
+	return &state.Track{
+		ID:       trackID,
+		Title:    resp.Title,
+		Duration: dur,
+		Artwork:  resp.Thumbnail,
+		URL:      trackURL,
+		Source:   PlatformYouTube,
+	}, nil
+}
+
+// RiteshPlaylist extracts tracks from YouTube/Spotify playlists via GET /playlist?link={playlist_url_or_id}&limit={limit}&api_key={api_key}.
+func RiteshPlaylist(linkOrID string, limit int) ([]*state.Track, error) {
+	if config.RiteshAPIKey == "" {
+		return nil, errors.New("riteshapi: api key is not configured")
+	}
+	if limit <= 0 {
+		limit = 25
+	}
+
+	apiURL := getRiteshBaseURL()
+	reqURL := fmt.Sprintf("%s/playlist?link=%s&limit=%d&api_key=%s",
+		apiURL, url.QueryEscape(strings.TrimSpace(linkOrID)), limit, url.QueryEscape(config.RiteshAPIKey))
+
+	var resp struct {
+		Videos []struct {
+			VidID       string `json:"vidid"`
+			Title       string `json:"title"`
+			DurationMin string `json:"duration_min"`
+			DurationSec int    `json:"duration_sec"`
+			Thumbnail   string `json:"thumbnail"`
+		} `json:"videos"`
+	}
+
+	rResp, err := rc.R().
+		SetHeader("User-Agent", "KanhaMusic/1.0").
+		SetResult(&resp).
+		Get(reqURL)
+	if err != nil {
+		return nil, sanitizeAPIError(err, config.RiteshAPIKey)
+	}
+	if rResp.IsStatusFailure() || len(resp.Videos) == 0 {
+		return nil, fmt.Errorf("ritesh playlist failed with HTTP %d", rResp.StatusCode())
+	}
+
+	tracks := make([]*state.Track, 0, len(resp.Videos))
+	for _, v := range resp.Videos {
+		if v.Title == "" {
+			continue
+		}
+		dur := v.DurationSec
+		if dur <= 0 && v.DurationMin != "" {
+			dur = parseDurationString(v.DurationMin)
+		}
+		vid := v.VidID
+		if vid == "" {
+			vid = v.Title
+		}
+		tracks = append(tracks, &state.Track{
+			ID:       vid,
+			Title:    v.Title,
+			Duration: dur,
+			Artwork:  v.Thumbnail,
+			URL:      "https://www.youtube.com/watch?v=" + vid,
+			Source:   PlatformYouTube,
+		})
+	}
+	return tracks, nil
+}
+
+// RiteshVideoInfo retrieves technical format lists and media metadata via GET /video_info?vidid={vidid}&api_key={api_key}.
+func RiteshVideoInfo(vidid string) (map[string]any, error) {
+	if config.RiteshAPIKey == "" {
+		return nil, errors.New("riteshapi: api key is not configured")
+	}
+
+	apiURL := getRiteshBaseURL()
+	reqURL := fmt.Sprintf("%s/video_info?vidid=%s&api_key=%s",
+		apiURL, url.QueryEscape(strings.TrimSpace(vidid)), url.QueryEscape(config.RiteshAPIKey))
+
+	var resp map[string]any
+	rResp, err := rc.R().
+		SetHeader("User-Agent", "KanhaMusic/1.0").
+		SetResult(&resp).
+		Get(reqURL)
+	if err != nil {
+		return nil, sanitizeAPIError(err, config.RiteshAPIKey)
+	}
+	if rResp.IsStatusFailure() {
+		return nil, fmt.Errorf("ritesh video_info failed with HTTP %d", rResp.StatusCode())
+	}
+	return resp, nil
+}
+
+// RiteshMusicBotPlayURL returns the direct high-speed redirect stream URL for voice chats via GET /api/musicbot/play/{vidid}?api_key={api_key}.
+func RiteshMusicBotPlayURL(vidid string) string {
+	apiURL := getRiteshBaseURL()
+	return fmt.Sprintf("%s/api/musicbot/play/%s?api_key=%s",
+		apiURL, url.PathEscape(strings.TrimSpace(vidid)), url.QueryEscape(config.RiteshAPIKey))
+}
+
+// RiteshDownloadURL returns the direct download/streaming endpoint URL via GET /download?query={query}&dl_type={audio|video}&quality={quality}&api_key={api_key}.
+func RiteshDownloadURL(query, dlType, quality string) string {
+	apiURL := getRiteshBaseURL()
+	if dlType == "" {
+		dlType = "audio"
+	}
+	if quality == "" {
+		if dlType == "audio" {
+			quality = "320k"
+		} else {
+			quality = "720p"
+		}
+	}
+	return fmt.Sprintf("%s/download?query=%s&dl_type=%s&quality=%s&api_key=%s",
+		apiURL, url.QueryEscape(strings.TrimSpace(query)), url.QueryEscape(dlType), url.QueryEscape(quality), url.QueryEscape(config.RiteshAPIKey))
+}
+
+// RiteshExtractPlatform extracts media from 90+ social/streaming platforms via GET /api/platform/extract?url={url}&api_key={api_key}.
+func RiteshExtractPlatform(query string, video bool) ([]*state.Track, error) {
+	if config.RiteshAPIKey == "" {
+		return nil, errors.New("riteshapi: api key is required for multi-platform extraction")
+	}
+
+	apiURL := getRiteshBaseURL()
+	reqURL := fmt.Sprintf("%s/api/platform/extract?url=%s&api_key=%s",
+		apiURL, url.QueryEscape(strings.TrimSpace(query)), url.QueryEscape(config.RiteshAPIKey))
+
+	var resp struct {
+		Success     bool   `json:"success"`
+		Platform    string `json:"platform"`
+		ID          string `json:"id"`
+		Title       string `json:"title"`
+		Description string `json:"description"`
+		Thumbnail   string `json:"thumbnail"`
+		Duration    int    `json:"duration"`
+		MediaType   string `json:"media_type"`
+		DownloadURL string `json:"download_url"`
+		Error       string `json:"error"`
+	}
+
+	rResp, err := rc.R().
+		SetHeader("User-Agent", "KanhaMusic/1.0").
+		SetResult(&resp).
+		Get(reqURL)
+	if err != nil {
+		return nil, sanitizeAPIError(fmt.Errorf("riteshapi extract request failed: %w", err), config.RiteshAPIKey)
+	}
+	if rResp.IsStatusFailure() || !resp.Success {
+		errMsg := resp.Error
+		if errMsg == "" {
+			errMsg = fmt.Sprintf("status code %d", rResp.StatusCode())
+		}
+		return nil, fmt.Errorf("riteshapi extract failed: %s", errMsg)
+	}
+
+	trackID := resp.ID
+	if trackID == "" {
+		h := md5.Sum([]byte(query))
+		trackID = hex.EncodeToString(h[:10])
+	}
+
+	title := strings.TrimSpace(resp.Title)
+	if title == "" {
+		if resp.Description != "" {
+			lines := strings.Split(strings.TrimSpace(resp.Description), "\n")
+			if len(lines) > 0 && lines[0] != "" {
+				title = strings.TrimSpace(lines[0])
+			}
+		}
+		if title == "" {
+			if resp.Platform != "" {
+				title = strings.ToUpper(resp.Platform[:1]) + resp.Platform[1:] + " Media"
+			} else {
+				title = "Multi-Platform Track"
+			}
+		}
+	}
+
+	isVideo := video || resp.MediaType == "video"
+	track := &state.Track{
+		ID:       trackID,
+		Title:    title,
+		Duration: resp.Duration,
+		Artwork:  resp.Thumbnail,
+		URL:      query,
+		Video:    isVideo,
+		Source:   PlatformRiteshApi,
+	}
+
+	return []*state.Track{track}, nil
+}
+
 // ============================================================================
 // Spotify Platform (Resolves Spotify Tracks & Playlists via Ritesh API / Embed)
 // ============================================================================
@@ -523,93 +797,16 @@ func (s *SpotifyPlatform) Download(_ context.Context, _ *state.Track, _ *td.Mess
 
 // fetchTrackViaRitesh resolves Spotify track using Ritesh API /details endpoint
 func (s *SpotifyPlatform) fetchTrackViaRitesh(link string) ([]*state.Track, error) {
-	apiURL := getRiteshBaseURL()
-	reqURL := fmt.Sprintf("%s/details?link=%s&api_key=%s",
-		apiURL, url.QueryEscape(link), url.QueryEscape(config.RiteshAPIKey))
-
-	var resp struct {
-		Title       string `json:"title"`
-		DurationMin string `json:"duration_min"`
-		DurationSec int    `json:"duration_sec"`
-		Thumbnail   string `json:"thumbnail"`
-		VidID       string `json:"vidid"`
-		Link        string `json:"link"`
-	}
-
-	rResp, err := rc.R().
-		SetHeader("User-Agent", "KanhaMusic/1.0").
-		SetResult(&resp).
-		Get(reqURL)
+	t, err := RiteshDetails(link)
 	if err != nil {
-		return nil, sanitizeAPIError(err, config.RiteshAPIKey)
+		return nil, err
 	}
-	if rResp.IsStatusFailure() || resp.Title == "" {
-		return nil, fmt.Errorf("details failed with HTTP %d", rResp.StatusCode())
-	}
-
-	trackID := resp.VidID
-	if trackID == "" {
-		trackID = resp.Title
-	}
-
-	return []*state.Track{{
-		ID:       trackID,
-		Title:    resp.Title,
-		Duration: resp.DurationSec,
-		Artwork:  resp.Thumbnail,
-		URL:      resp.Link,
-		Source:   PlatformYouTube,
-	}}, nil
+	return []*state.Track{t}, nil
 }
 
 // fetchPlaylistViaRitesh resolves Spotify collection using Ritesh API /playlist endpoint
 func (s *SpotifyPlatform) fetchPlaylistViaRitesh(link string) ([]*state.Track, error) {
-	apiURL := getRiteshBaseURL()
-	limit := config.QueueLimit
-	if limit <= 0 {
-		limit = 25
-	}
-
-	reqURL := fmt.Sprintf("%s/playlist?link=%s&limit=%d&api_key=%s",
-		apiURL, url.QueryEscape(link), limit, url.QueryEscape(config.RiteshAPIKey))
-
-	var resp struct {
-		Videos []struct {
-			VidID       string `json:"vidid"`
-			Title       string `json:"title"`
-			DurationMin string `json:"duration_min"`
-			DurationSec int    `json:"duration_sec"`
-			Thumbnail   string `json:"thumbnail"`
-		} `json:"videos"`
-	}
-
-	rResp, err := rc.R().
-		SetHeader("User-Agent", "KanhaMusic/1.0").
-		SetResult(&resp).
-		Get(reqURL)
-	if err != nil {
-		return nil, sanitizeAPIError(err, config.RiteshAPIKey)
-	}
-	if rResp.IsStatusFailure() || len(resp.Videos) == 0 {
-		return nil, fmt.Errorf("playlist failed with HTTP %d", rResp.StatusCode())
-	}
-
-	tracks := make([]*state.Track, 0, len(resp.Videos))
-	for _, v := range resp.Videos {
-		if v.Title == "" {
-			continue
-		}
-		tracks = append(tracks, &state.Track{
-			ID:       v.VidID,
-			Title:    v.Title,
-			Duration: v.DurationSec,
-			Artwork:  v.Thumbnail,
-			URL:      "https://youtu.be/" + v.VidID,
-			Source:   PlatformYouTube,
-		})
-	}
-
-	return tracks, nil
+	return RiteshPlaylist(link, config.QueueLimit)
 }
 
 // Embed scrapers for fallback when API key is not present or offline

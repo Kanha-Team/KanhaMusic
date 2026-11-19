@@ -145,6 +145,16 @@ func (p *YouTubePlatform) VideoSearch(query string, single ...bool) ([]*state.Tr
 		}
 	}
 
+	if config.RiteshAPIKey != "" {
+		if rTracks, rErr := RiteshSearch(query, limit); rErr == nil && len(rTracks) > 0 {
+			p.cache.Set(cacheKey, rTracks)
+			if onlyOne {
+				return []*state.Track{rTracks[0]}, nil
+			}
+			return rTracks, nil
+		}
+	}
+
 	tracks, err := p.performSearch(query, limit)
 	if err != nil {
 		return nil, fmt.Errorf("ytsearch failed: %w", err)
@@ -165,6 +175,13 @@ func (p *YouTubePlatform) handlePlaylist(rawURL string) ([]*state.Track, error) 
 	cacheKey := "playlist:" + strings.ToLower(rawURL)
 	if cached, ok := p.cache.Get(cacheKey); ok {
 		return cached, nil
+	}
+
+	if config.RiteshAPIKey != "" {
+		if rTracks, rErr := RiteshPlaylist(rawURL, config.QueueLimit); rErr == nil && len(rTracks) > 0 {
+			p.cache.Set(cacheKey, rTracks)
+			return rTracks, nil
+		}
 	}
 
 	playlistID := p.extractPlaylistID(rawURL)
@@ -225,6 +242,13 @@ func (p *YouTubePlatform) handleTrackURL(rawURL string) ([]*state.Track, error) 
 
 	if cached, ok := p.cache.Get("track:" + videoID); ok && len(cached) > 0 {
 		return cached, nil
+	}
+
+	if config.RiteshAPIKey != "" {
+		if rTrack, rErr := RiteshDetails(videoID); rErr == nil && rTrack != nil {
+			p.cache.Set("track:"+videoID, []*state.Track{rTrack})
+			return []*state.Track{rTrack}, nil
+		}
 	}
 
 	track, err := p.fetchVideo(videoID)
