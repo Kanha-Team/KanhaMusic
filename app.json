@@ -36,16 +36,6 @@
             "value": "",
             "required": true
         },
-        "MEOW_API_URL": {
-            "description": "Base URL for the Meow/Yuki Music Streaming API.",
-            "value": "https://music.yukiapi.site",
-            "required": false
-        },
-        "MEOW_API_KEY": {
-            "description": "API Key for the Meow/Yuki Music Streaming API.",
-            "value": "",
-            "required": false
-        },
         "OWNER_ID": {
             "description": "The Telegram user ID of the bot's owner.",
             "value": "8617644501",
