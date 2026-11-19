@@ -29,7 +29,7 @@ import (
 )
 
 const (
-	oldDBName = "Yukki"
+	oldDBName = "MeowMusic"
 )
 
 // old data structures
