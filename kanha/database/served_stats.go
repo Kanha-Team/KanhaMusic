@@ -33,6 +33,22 @@ func ServedUsers() ([]int64, error) {
 	return state.Served.Users, nil
 }
 
+func TotalServedChats() (int, error) {
+	chats, err := ServedChats()
+	if err != nil {
+		return 0, err
+	}
+	return len(chats), nil
+}
+
+func TotalServedUsers() (int, error) {
+	users, err := ServedUsers()
+	if err != nil {
+		return 0, err
+	}
+	return len(users), nil
+}
+
 func IsServedChat(id int64) (bool, error) {
 	state, err := getBotState()
 	if err != nil {

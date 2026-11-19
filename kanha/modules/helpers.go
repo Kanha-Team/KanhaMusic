@@ -200,9 +200,13 @@ func sendPlayLogs(c *td.Client, m *td.Message, track *state.Track, queued bool) 
 		return
 	}
 
-	header := F(m.ChatID(), "logger_playback_started")
+	headerTag := "#PLAYBACK_STARTED"
+	headerTitle := "ᴘʟᴧʏʙᴧᴄᴋ sᴛᴧʀᴛєᴅ"
+	icon := "🎧"
 	if queued {
-		header = F(m.ChatID(), "logger_playback_queued")
+		headerTag = "#PLAYBACK_QUEUED"
+		headerTitle = "ᴘʟᴧʏʙᴧᴄᴋ ǫᴜєᴜєᴅ"
+		icon = "📥"
 	}
 
 	chat, _ := m.GetChat(c)
@@ -215,26 +219,24 @@ func sendPlayLogs(c *td.Client, m *td.Message, track *state.Track, queued bool) 
 		}
 	}
 
-	var sb strings.Builder
-	sb.WriteString("🎵 ")
-	if groupLink != "" {
-		fmt.Fprintf(&sb, "<b><a href=\"%s\">%s</a></b>\n\n", groupLink, header)
-	} else {
-		fmt.Fprintf(&sb, "<b><u>%s</u></b>\n\n", header)
-	}
-
 	sender, _ := m.GetUser(c)
 	requestedBy := mentionOf(sender, m.SenderID())
 
-	sb.WriteString(F(m.ChatID(), "logger_playback_template", locales.Arg{
-		"track_url":       track.URL,
-		"track":           utils.EscapeHTML(utils.ShortTitle(track.Title)),
-		"source":          string(track.Source),
-		"group":           groupName,
-		"group_id":        m.ChatID(),
-		"requested_by":    requestedBy,
-		"requested_by_id": m.SenderID(),
-	}))
+	var sb strings.Builder
+	if groupLink != "" {
+		fmt.Fprintf(&sb, "%s <b><a href=\"%s\">%s</a></b> • <code>%s</code>\n", icon, groupLink, headerTitle, headerTag)
+	} else {
+		fmt.Fprintf(&sb, "%s <b>%s</b> • <code>%s</code>\n", icon, headerTitle, headerTag)
+	}
+
+	sb.WriteString("<blockquote>")
+	fmt.Fprintf(&sb, "<b>🎵 ᴛʀᴧᴄᴋ:</b> <a href=\"%s\">%s</a>\n", track.URL, utils.EscapeHTML(utils.ShortTitle(track.Title, 45)))
+	fmt.Fprintf(&sb, "<b>⏱️ ᴅᴜʀᴧᴛɪση:</b> %s\n", utils.FormatDuration(track.Duration))
+	fmt.Fprintf(&sb, "<b>📡 sσᴜʀᴄє:</b> %s\n", track.Source)
+	fmt.Fprintf(&sb, "<b>👥 ɢʀσᴜᴘ:</b> %s (<code>%d</code>)\n", utils.EscapeHTML(groupName), m.ChatID())
+	fmt.Fprintf(&sb, "<b>👤 ʀєǫᴜєsᴛєᴅ ʙʏ:</b> %s (<code>%d</code>)\n", requestedBy, m.SenderID())
+	fmt.Fprintf(&sb, "<b>📅 ᴛɪᴍє:</b> %s", time.Now().Format("02 Jan 2006 • 15:04"))
+	sb.WriteString("</blockquote>")
 
 	_, err := core.Bot.SendTextMessage(
 		config.LoggerID,
@@ -265,25 +267,21 @@ func sendAutoplayLogs(c *td.Client, chatID int64, track *state.Track, statusMsg 
 		}
 	}
 
-	header := F(chatID, "logger_playback_started")
-
 	var sb strings.Builder
-	sb.WriteString("🎵 ")
 	if groupLink != "" {
-		fmt.Fprintf(&sb, "<b><a href=\"%s\">%s</a></b>\n\n", groupLink, header)
+		fmt.Fprintf(&sb, "🔄 <b><a href=\"%s\">ᴧᴜᴛσᴘʟᴧʏ sᴛᴧʀᴛєᴅ</a></b> • <code>#AUTOPLAY</code>\n", groupLink)
 	} else {
-		fmt.Fprintf(&sb, "<b><u>%s</u></b>\n\n", header)
+		sb.WriteString("🔄 <b>ᴧᴜᴛσᴘʟᴧʏ sᴛᴧʀᴛєᴅ</b> • <code>#AUTOPLAY</code>\n")
 	}
 
-	sb.WriteString(F(chatID, "logger_playback_template", locales.Arg{
-		"track_url":       track.URL,
-		"track":           utils.EscapeHTML(utils.ShortTitle(track.Title)),
-		"source":          string(track.Source),
-		"group":           groupName,
-		"group_id":        chatID,
-		"requested_by":    track.Requester,
-		"requested_by_id": "autoplay",
-	}))
+	sb.WriteString("<blockquote>")
+	fmt.Fprintf(&sb, "<b>🎵 ᴛʀᴧᴄᴋ:</b> <a href=\"%s\">%s</a>\n", track.URL, utils.EscapeHTML(utils.ShortTitle(track.Title, 45)))
+	fmt.Fprintf(&sb, "<b>⏱️ ᴅᴜʀᴧᴛɪση:</b> %s\n", utils.FormatDuration(track.Duration))
+	fmt.Fprintf(&sb, "<b>📡 sσᴜʀᴄє:</b> %s\n", track.Source)
+	fmt.Fprintf(&sb, "<b>👥 ɢʀσᴜᴘ:</b> %s (<code>%d</code>)\n", utils.EscapeHTML(groupName), chatID)
+	fmt.Fprintf(&sb, "<b>🤖 ʀєǫᴜєsᴛєᴅ ʙʏ:</b> %s\n", track.Requester)
+	fmt.Fprintf(&sb, "<b>📅 ᴛɪᴍє:</b> %s", time.Now().Format("02 Jan 2006 • 15:04"))
+	sb.WriteString("</blockquote>")
 
 	if _, err := core.Bot.SendTextMessage(
 		config.LoggerID,

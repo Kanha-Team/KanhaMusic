@@ -19,6 +19,7 @@ package modules
 
 import (
 	"strings"
+	"time"
 
 	td "github.com/Kanha/Meow"
 
@@ -170,13 +171,19 @@ func logStart(c *td.Client, m *td.Message, sender *td.User) {
 		uName = "@" + sender.Usernames.ActiveUsernames[0]
 	}
 
+	totalUsers, _ := database.TotalServedUsers()
+
 	msg := F(config.LoggerID, "logger_bot_started", locales.Arg{
 		"mention":       mentionOf(sender, m.SenderID()),
 		"user_id":       m.SenderID(),
 		"user_username": uName,
+		"total_users":   totalUsers,
+		"date_time":     time.Now().Format("02 Jan 2006 • 15:04"),
 	})
 
-	if _, err := c.SendTextMessage(config.LoggerID, msg, nil); err != nil {
+	if _, err := c.SendTextMessage(config.LoggerID, msg, &td.SendTextMessageOpts{
+		ParseMode: td.ParseModeHTML,
+	}); err != nil {
 		c.Logger.Error("Logger send failed", "error", err)
 	}
 }

@@ -18,6 +18,7 @@
 package modules
 
 import (
+	"fmt"
 	"strings"
 	"time"
 
@@ -117,8 +118,14 @@ func handleChatMemberAdd(c *td.Client, m *td.Message) error {
 		}
 		database.AddServedChat(chatID)
 
-		if config.LoggerID != 0 {
-			if _, rerr := c.SendTextMessage(config.LoggerID, F(config.LoggerID, "logger_bot_added", buildLogArgs(c, m, chatID, "added")), nil); rerr != nil {
+		totalChats, _ := database.TotalServedChats()
+		logArgs := buildLogArgs(c, m, chatID, "added")
+		logArgs["total_chats"] = totalChats
+
+		if config.LoggerID != 0 && isLoggerEnabled() {
+			if _, rerr := c.SendTextMessage(config.LoggerID, F(config.LoggerID, "logger_bot_added", logArgs), &td.SendTextMessageOpts{
+				ParseMode: td.ParseModeHTML,
+			}); rerr != nil {
 				return rerr
 			}
 		}
@@ -129,45 +136,110 @@ func handleChatMemberAdd(c *td.Client, m *td.Message) error {
 	return nil
 }
 
+func handleUserBlocked(c *td.Client, u *td.UpdateChatMember, userID int64) {
+	logger.Infof("User %d blocked or stopped the bot", userID)
+
+	_ = database.RemoveServedUser(userID)
+
+	if config.LoggerID == 0 || config.LoggerID == userID || !isLoggerEnabled() {
+		return
+	}
+
+	user, err := c.GetUser(userID)
+	userName := "N/A"
+	userUsername := "N/A"
+	userMention := fmt.Sprintf("<code>%d</code>", userID)
+	if err == nil && user != nil {
+		userName = strings.TrimSpace(user.FirstName + " " + user.LastName)
+		if userName == "" {
+			userName = "Deleted Account"
+		}
+		if user.Usernames != nil && len(user.Usernames.ActiveUsernames) > 0 {
+			userUsername = "@" + user.Usernames.ActiveUsernames[0]
+		}
+		userMention = mentionOf(user, userID)
+	}
+
+	totalUsers, _ := database.TotalServedUsers()
+
+	msg := F(config.LoggerID, "logger_user_blocked", locales.Arg{
+		"user_name":     userName,
+		"user_id":       userID,
+		"user_username": userUsername,
+		"mention":       userMention,
+		"total_users":   totalUsers,
+		"date_time":     time.Now().Format("02 Jan 2006 • 15:04"),
+	})
+
+	if _, err := c.SendTextMessage(config.LoggerID, msg, &td.SendTextMessageOpts{
+		ParseMode: td.ParseModeHTML,
+	}); err != nil {
+		logger.Errorf("failed to send user-blocked log: %v", err)
+	}
+}
+
 func handleBotRemoved(c *td.Client, u *td.UpdateChatMember, chatID int64) {
+	if chatID > 0 {
+		handleUserBlocked(c, u, chatID)
+		return
+	}
+
 	logger.Debugf("Bot removed from chat %d", chatID)
 
 	cleanScheduler.cancel(chatID)
 	core.DropRoom(chatID)
 	core.DropChatState(chatID)
-	database.RemoveServedChat(chatID)
+	_ = database.RemoveServedChat(chatID)
 
-	if config.LoggerID == 0 || config.LoggerID == chatID {
+	if config.LoggerID == 0 || config.LoggerID == chatID || !isLoggerEnabled() {
 		return
 	}
 
 	groupName := "N/A"
+	groupUsername := "N/A"
 	if chat, err := c.GetChat(chatID); err == nil && chat != nil {
-		groupName = chat.Title
+		if chat.Title != "" {
+			groupName = chat.Title
+		}
+		if t, ok := chat.Type.(*td.ChatTypeSupergroup); ok {
+			if sg, err := c.GetSupergroup(t.SupergroupId); err == nil && sg != nil && sg.Usernames != nil && len(sg.Usernames.ActiveUsernames) > 0 {
+				groupUsername = "@" + sg.Usernames.ActiveUsernames[0]
+			}
+		}
 	}
 
 	actorID := u.ActorUserId
 	actorName := "N/A"
-	actorMention := "N/A"
+	actorMention := fmt.Sprintf("<code>%d</code>", actorID)
+	actorUsername := "N/A"
 	if actor, err := c.GetUser(actorID); err == nil && actor != nil {
 		actorName = strings.TrimSpace(actor.FirstName + " " + actor.LastName)
 		if actorName == "" {
-			actorName = "N/A"
+			actorName = "Unknown"
 		}
 		actorMention = mentionOf(actor, actorID)
+		if actor.Usernames != nil && len(actor.Usernames.ActiveUsernames) > 0 {
+			actorUsername = "@" + actor.Usernames.ActiveUsernames[0]
+		}
 	}
+
+	totalChats, _ := database.TotalServedChats()
 
 	msg := F(config.LoggerID, "logger_bot_removed", locales.Arg{
 		"group_name":          groupName,
 		"group_id":            chatID,
-		"group_username":      "N/A",
+		"group_username":      groupUsername,
 		"removed_by_name":     actorName,
 		"removed_by_id":       actorID,
 		"removed_by_username": actorMention,
+		"actor_username":      actorUsername,
+		"total_chats":         totalChats,
 		"date_time":           time.Now().Format("02 Jan 2006 • 15:04"),
 	})
 
-	if _, err := c.SendTextMessage(config.LoggerID, msg, nil); err != nil {
+	if _, err := c.SendTextMessage(config.LoggerID, msg, &td.SendTextMessageOpts{
+		ParseMode: td.ParseModeHTML,
+	}); err != nil {
 		logger.Errorf("failed to send bot-removed log: %v", err)
 	}
 }
@@ -217,26 +289,54 @@ func handleVoiceChatAction(c *td.Client, m *td.Message) error {
 
 func buildLogArgs(c *td.Client, m *td.Message, chatID int64, action string) locales.Arg {
 	groupName := "N/A"
+	groupUsername := "N/A"
+	membersCount := 0
+
 	if chat, err := m.GetChat(c); err == nil && chat != nil {
-		groupName = chat.Title
+		if chat.Title != "" {
+			groupName = chat.Title
+		}
+		if t, ok := chat.Type.(*td.ChatTypeSupergroup); ok {
+			if sg, err := c.GetSupergroup(t.SupergroupId); err == nil && sg != nil && sg.Usernames != nil && len(sg.Usernames.ActiveUsernames) > 0 {
+				groupUsername = "@" + sg.Usernames.ActiveUsernames[0]
+			}
+			if sgFull, err := c.GetSupergroupFullInfo(t.SupergroupId); err == nil && sgFull != nil {
+				membersCount = int(sgFull.MemberCount)
+			}
+		} else if t, ok := chat.Type.(*td.ChatTypeBasicGroup); ok {
+			if bgFull, err := c.GetBasicGroupFullInfo(t.BasicGroupId); err == nil && bgFull != nil {
+				membersCount = len(bgFull.Members)
+			}
+		}
 	}
 
 	sender, _ := m.GetUser(c)
 	actorID := m.SenderID()
 	actorName := "N/A"
+	actorUsername := "N/A"
 	if sender != nil {
 		if full := strings.TrimSpace(sender.FirstName + " " + sender.LastName); full != "" {
 			actorName = full
 		}
+		if sender.Usernames != nil && len(sender.Usernames.ActiveUsernames) > 0 {
+			actorUsername = "@" + sender.Usernames.ActiveUsernames[0]
+		}
+	}
+
+	membersStr := "N/A"
+	if membersCount > 0 {
+		membersStr = fmt.Sprintf("%d", membersCount)
 	}
 
 	return locales.Arg{
 		"group_name":            groupName,
 		"group_id":              chatID,
-		"group_username":        "N/A",
+		"group_username":        groupUsername,
+		"members_count":         membersStr,
 		action + "_by_name":     actorName,
 		action + "_by_id":       actorID,
 		action + "_by_username": mentionOf(sender, actorID),
+		"actor_username":        actorUsername,
 		"date_time":             time.Now().Format("02 Jan 2006 • 15:04"),
 	}
 }

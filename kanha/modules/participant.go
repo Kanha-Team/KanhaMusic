@@ -96,7 +96,19 @@ func handleParticipantUpdate(c *td.Client, u *td.UpdateChatMember) error {
 	newStatus := memberStatus(u.NewChatMember)
 
 	if c.Me != nil && userID == c.Me.Id && (newStatus == "left" || newStatus == "kicked") {
-		handleBotRemoved(c, u, chatID)
+		isPrivate := chatID > 0
+		if !isPrivate {
+			if chat, err := c.GetChat(chatID); err == nil && chat != nil {
+				if _, ok := chat.Type.(*td.ChatTypePrivate); ok {
+					isPrivate = true
+				}
+			}
+		}
+		if isPrivate {
+			handleUserBlocked(c, u, chatID)
+		} else {
+			handleBotRemoved(c, u, chatID)
+		}
 		return nil
 	}
 

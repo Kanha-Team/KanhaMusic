@@ -119,7 +119,11 @@ func initBot() error {
 	Bot = client
 
 	if config.LoggerID != 0 {
-		_, _ = client.SendTextMessage(config.LoggerID, "Bot Started", nil)
+		bootMsg := fmt.Sprintf("🚀 <b>ʙσᴛ sᴛᴧʀᴛєᴅ sᴜᴄᴄєssғᴜʟʟʏ</b> • <code>#BOOT</code>\n<blockquote><b>🤖 ʙσᴛ:</b> @%s\n<b>🆔 ɪᴅ:</b> <code>%d</code>\n<b>📅 ᴛɪᴍє:</b> %s</blockquote>",
+			botUsername(), client.Me.Id, time.Now().Format("02 Jan 2006 • 15:04"))
+		_, _ = client.SendTextMessage(config.LoggerID, bootMsg, &td.SendTextMessageOpts{
+			ParseMode: td.ParseModeHTML,
+		})
 	}
 
 	logger.Infof("Bot started as @%s", botUsername())
@@ -214,9 +218,15 @@ func initAssistants() error {
 		assistantList = append(assistantList, assistant)
 
 		if config.LoggerID != 0 {
+			assUName := "N/A"
+			if assistant.Self.Username != "" {
+				assUName = "@" + assistant.Self.Username
+			}
+			assMsg := fmt.Sprintf("✨ <b>ᴧssɪsᴛᴧηᴛ %d sᴛᴧʀᴛєᴅ</b> • <code>#ASSISTANT_BOOT</code>\n<blockquote><b>👤 ηᴧᴍє:</b> %s\n<b>🔗 ᴜsєʀηᴧᴍє:</b> %s\n<b>🆔 ɪᴅ:</b> <code>%d</code>\n<b>📅 ᴛɪᴍє:</b> %s</blockquote>",
+				i+1, assistant.Self.FirstName, assUName, assistant.Self.ID, time.Now().Format("02 Jan 2006 • 15:04"))
 			_, _ = assistant.Client.SendMessage(
 				config.LoggerID,
-				fmt.Sprintf("Assistant %d Started", i+1),
+				assMsg,
 			)
 		}
 

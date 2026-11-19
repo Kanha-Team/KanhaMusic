@@ -296,41 +296,51 @@ logger_playback_started: "संगीत आरम्भ"
 logger_playback_queued: "संगीत प्रतीक्षा सूची में"
 
 logger_bot_added: |
-  {emoji:🤖} <b>बोट नवीन समूह में जोड़ा गया</b>
-  
+  🎉 <b>बॉट नवीन समूह में जोड़ा गया</b> • <code>#NEW_GROUP</code>
   <blockquote>
-  <b>समूह नाम:</b> {group_name}
-  <b>समूह परिचय पत्र:</b> {group_id}
-  <b>समूह उपयोगकर्ता नाम:</b> {group_username}
+  <b>👥 समूह:</b> {group_name}
+  <b>🆔 समूह आईडी:</b> <code>{group_id}</code>
+  <b>🔗 समूह उपयोगकर्ता नाम:</b> {group_username}
+  <b>👥 सदस्य संख्या:</b> {members_count}
 
-  <b>जोड़ने वाला:</b> {added_by_name}
-  <b>उपयोगकर्ता परिचय पत्र:</b> {added_by_id}
-  <b>उपयोगकर्ता नाम:</b> {added_by_username}
-
-  <b>समय:</b> {date_time}
+  <b>👤 जोड़ने वाला:</b> {added_by_username}
+  <b>🆔 उपयोगकर्ता आईडी:</b> <code>{added_by_id}</code>
+  <b>📊 कुल समूह:</b> {total_chats}
+  <b>📅 समय:</b> {date_time}
   </blockquote>
-#  👥 <b>सदस्य संख्या:</b> {members_count}
 
 logger_bot_removed: |
-
-  {emoji:🤖} <b>बोट समूह से हटाया गया</b>
+  🗑️ <b>बॉट समूह से हटाया गया</b> • <code>#REMOVED_GROUP</code>
   <blockquote>
-  <b>समूह नाम:</b> {group_name}
-  <b>समूह परिचय पत्र:</b> {group_id}
-  <b>समूह उपयोगकर्ता नाम:</b> {group_username}
+  <b>👥 समूह:</b> {group_name}
+  <b>🆔 समूह आईडी:</b> <code>{group_id}</code>
+  <b>🔗 समूह उपयोगकर्ता नाम:</b> {group_username}
 
-  <b>हटाने वाला:</b> {removed_by_name}
-  <b>उपयोगकर्ता परिचय पत्र:</b> {removed_by_id}
-  <b>उपयोगकर्ता नाम:</b> {removed_by_username}
-
-  <b>समय:</b> {date_time}
+  <b>👤 हटाने वाला:</b> {removed_by_username}
+  <b>🆔 उपयोगकर्ता आईडी:</b> <code>{removed_by_id}</code>
+  <b>📊 कुल समूह:</b> {total_chats}
+  <b>📅 समय:</b> {date_time}
   </blockquote>
-  
-logger_bot_started: |
-  {emoji:▶️} <b>{mention} ने सहायक आरम्भ किया</b>
 
-  <b>उपयोगकर्ता नाम:</b> {user_username}
-  <b>परिचय पत्र:</b> {user_id}
+logger_user_blocked: |
+  🚫 <b>उपयोगकर्ता ने बॉट अवरुद्ध (ब्लॉक) किया</b> • <code>#USER_BLOCKED</code>
+  <blockquote>
+  <b>👤 उपयोगकर्ता:</b> {mention}
+  <b>🆔 उपयोगकर्ता आईडी:</b> <code>{user_id}</code>
+  <b>🔗 उपयोगकर्ता नाम:</b> {user_username}
+  <b>📊 कुल उपयोगकर्ता:</b> {total_users}
+  <b>📅 समय:</b> {date_time}
+  </blockquote>
+
+logger_bot_started: |
+  ▶️ <b>नवीन उपयोगकर्ता ने बॉट शुरू किया</b> • <code>#NEW_USER</code>
+  <blockquote>
+  <b>👤 उपयोगकर्ता:</b> {mention}
+  <b>🆔 उपयोगकर्ता आईडी:</b> <code>{user_id}</code>
+  <b>🔗 उपयोगकर्ता नाम:</b> {user_username}
+  <b>📊 कुल उपयोगकर्ता:</b> {total_users}
+  <b>📅 समय:</b> {date_time}
+  </blockquote>
   
 
 logger_playback_template: "<b>{emoji:🎧} संगीत:</b> <a href=\"{track_url}\">{track}</a>\n<b>{emoji:🔗} स्रोत:</b> {source}\n<b>{emoji:📌} समूह:</b> {group} ({group_id})\n<b>{emoji:👤} अनुरुद्धकर्ता:</b> {requested_by} (<code>{requested_by_id}</code>)"
