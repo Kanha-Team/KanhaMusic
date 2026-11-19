@@ -673,12 +673,13 @@ func formatBroadcastProgress(
 	}
 
 	elapsed := time.Since(stats.StartTime)
-	totalDone := stats.DoneChats + stats.DoneUsers
+	totalSuccess := stats.DoneChats + stats.DoneUsers
+	totalProcessed := totalSuccess + len(stats.FailedChats) + len(stats.FailedUsers)
 	totalTargets := stats.TotalChats + stats.TotalUsers
 
 	avgSpeed := 0.0
-	if elapsed.Seconds() > 0 && totalDone > 0 {
-		avgSpeed = float64(totalDone) / elapsed.Seconds()
+	if elapsed.Seconds() > 0 && totalProcessed > 0 {
+		avgSpeed = float64(totalProcessed) / elapsed.Seconds()
 	}
 
 	sb.WriteString(F(chatID, "broadcast_delay", locales.Arg{
@@ -688,25 +689,22 @@ func formatBroadcastProgress(
 		"elapsed": utils.FormatDuration(int(elapsed.Seconds())),
 	}) + "\n")
 
-	if !final && avgSpeed > 0 && totalDone < totalTargets {
-		eta := time.Duration(float64(totalTargets-totalDone) / avgSpeed * float64(time.Second))
+	if !final && avgSpeed > 0 && totalProcessed < totalTargets {
+		eta := time.Duration(float64(totalTargets-totalProcessed) / avgSpeed * float64(time.Second))
 		sb.WriteString("\n" + F(chatID, "broadcast_eta", locales.Arg{
 			"eta": utils.FormatDuration(int(eta.Seconds())),
 		}))
 	}
 
 	if final {
-		totalSent := totalDone
-		totalFailed := len(stats.FailedChats) + len(stats.FailedUsers)
-
 		successRate := 0.0
 		if totalTargets > 0 {
-			successRate = float64(totalSent-totalFailed) / float64(totalTargets) * 100
+			successRate = float64(totalSuccess) / float64(totalTargets) * 100
 		}
 
 		sb.WriteString("\n\n" + F(chatID, "broadcast_success_rate", locales.Arg{
 			"rate":  fmt.Sprintf("%.1f", successRate),
-			"sent":  totalSent - totalFailed,
+			"sent":  totalSuccess,
 			"total": totalTargets,
 		}))
 	}
