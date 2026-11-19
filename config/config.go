@@ -43,6 +43,8 @@ var (
 	OwnerUsername = getEnv("OWNER_USERNAME", "")
 	DevURL        = getEnv("DEV_URL", getEnv("DEVELOPER_URL", ""))
 	DisableColour = getEnvBool("DISABLE_COLOUR", false)
+	RiteshAPIURL  = getEnv("RITESH_API_URL", "https://api.riteshyt.in")
+	RiteshAPIKey  = getEnv("RITESH_API_KEY", "")
 
 	DefaultLang    = getEnv("DEFAULT_LANG", "en")
 	DurationLimit  = getEnvInt("DURATION_LIMIT", 4200)

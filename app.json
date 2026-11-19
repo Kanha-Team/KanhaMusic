@@ -36,6 +36,16 @@
             "value": "",
             "required": true
         },
+        "RITESH_API_URL": {
+            "description": "Base URL for the Ritesh Music Streaming API (default: https://api.riteshyt.in).",
+            "value": "https://api.riteshyt.in",
+            "required": false
+        },
+        "RITESH_API_KEY": {
+            "description": "API Key for Ritesh Music API from https://www.riteshyt.in/dashboard#api-keys.",
+            "value": "",
+            "required": false
+        },
         "OWNER_ID": {
             "description": "The Telegram user ID of the bot's owner.",
             "value": "8617644501",
