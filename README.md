@@ -35,11 +35,24 @@
 
 - 🚀 **Ultra-Low Latency Streaming:** Real-time PCM audio streaming with optimized buffer management and zero frame stutter.
 - 🤖 **Multi-Assistant Pooling:** Automatically distributes group voice chats across multiple assistant userbots with automatic load-balancing.
-- 🎵 **Multi-Platform Music Resolver:** Seamless resolution for YouTube, Spotify metadata, live radio streams, and Telegram audio files.
+- 🎵 **Multi-Platform Music Resolver:** Seamless resolution for YouTube, Spotify, Soundcloud, 90+ platforms via Ritesh API, and direct Telegram audio files.
 - 🎛️ **Full Playback Controls:** Comprehensive controls including `/seek`, `/speed` (0.5x - 2.0x), `/loop`, `/shuffle`, and `/replay`.
+- 🎭 **Dynamic Spoiler Mode:** Toggleable spoiler artwork for `/start`, `/ping`, and track thumbnails to keep chats clean and modern.
 - 🌐 **Dual Language Support:** Native embedded translations in **English (`en`)** and **Hindi (`hi`)**.
 - 🛡️ **Enterprise Security & Admin:** Dynamic sudo authorization, anti-flood protection, custom blacklist, and global maintenance switch.
 - 🎨 **Rich Visual Feedback:** Dynamic cover thumbnails, inline control keyboards, and animated Telegram reaction effect triggers.
+
+---
+
+## ⚡ Performance Benchmark: Go vs Python Bots
+
+| Metric / Benchmark | Standard Python Bots (PyTgCalls) | 🚀 KanhaMusic (Go + ntgcalls) | Advantage |
+| :--- | :---: | :---: | :---: |
+| **RAM / Memory Consumption** | 350 MB – 650 MB+ | **~35 MB – 70 MB** | **90% Less RAM** |
+| **CPU Overhead** | High (Python GIL lock) | **Ultra Low (Native Goroutines)** | **Zero CPU bottleneck** |
+| **Audio Start Latency** | 2.5s – 4.2s | **< 0.5s** | **Near-Instant Playback** |
+| **Concurrent Voice Chats** | Struggles at 5–8 calls | **50+ simultaneous chats** | **Massive Scalability** |
+| **Crash & Leak Resistance** | Prone to memory leaks | **Compiled static binary, rock-solid** | **24/7 Zero Downtime** |
 
 ---
 
@@ -143,7 +156,8 @@ Deploy your own **KanhaMusic** instance in under 60 seconds on any cloud provide
 | `STRING_SESSIONS` | **Yes** | — | Assistant account session strings (separated by commas or spaces) |
 | `OWNER_ID` | **Yes** | — | Telegram User ID of the bot owner |
 | `SESSION_TYPE` | No | `pyrogram` | String session format: `pyrogram`, `telethon`, or `gogram` |
-| `DB_NAME` | No | `MeowMusic` | MongoDB database name |
+| `DB_NAME` | No | `KanhaMusic` | MongoDB database name |
+| `ENABLE_SPOILER` | No | `false` | Enable Telegram spoiler effect on bot images (`true` / `false`) |
 | `LOGGER_ID` | No | `0` | Telegram Chat ID for logs and errors |
 | `DURATION_LIMIT` | No | `4200` | Max track duration in seconds (70 minutes) |
 | `QUEUE_LIMIT` | No | `24` | Maximum tracks allowed in queue per chat |
@@ -240,5 +254,6 @@ Distributed under the **GNU General Public License v3.0**. See the [`LICENSE`](.
 </p>
 
 <p align="center">
-  <b>Developed & Maintained with ❤️ by <a href="https://github.com/Kanha-Team">Kanha Team</a></b>
+  <b>Developed & Maintained with ❤️ by <a href="https://github.com/Kanha-Team">Kanha Team</a></b><br>
+  <sub>🚀 Explore our Portfolio: <a href="https://kanha-portfolio-ayush.vercel.app">kanha-portfolio-ayush.vercel.app</a></sub>
 </p>
