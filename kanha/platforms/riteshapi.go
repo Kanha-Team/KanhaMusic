@@ -64,13 +64,125 @@ func init() {
 func (r *RiteshApiPlatform) Name() state.PlatformName { return PlatformRiteshApi }
 func (r *RiteshApiPlatform) Priority() int             { return 85 }
 
+// supportedPlatformDomains contains 90+ platforms supported by Ritesh API /api/platform/extract
+var supportedPlatformDomains = []string{
+	// Social & Video
+	"instagram.com", "instagr.am",
+	"tiktok.com",
+	"twitter.com", "x.com",
+	"facebook.com", "fb.watch", "fb.com",
+	"threads.net",
+	"snapchat.com",
+	"reddit.com", "v.redd.it",
+	"pinterest.com", "pin.it",
+	"linkedin.com",
+	"bsky.app",
+	"tumblr.com",
+	"mastodon",
+	"douyin.com",
+	"kuaishou.com",
+	"triller.co",
+	"likee.video", "likee.com",
+	"weibo.com", "weibo.cn",
+	"xiaohongshu.com",
+	"9gag.com",
+
+	// Streaming & Music
+	"jiosaavn.com", "saavn.com",
+	"soundcloud.com",
+	"music.apple.com", "apple.co",
+	"gaana.com",
+	"deezer.com", "deezer.page.link",
+	"resso.com",
+	"tidal.com",
+	"bandcamp.com",
+	"mixcloud.com",
+	"audiomack.com",
+	"hearthis.at",
+	"jamendo.com",
+	"reverbnation.com",
+	"audius.co",
+	"boomplay.com",
+	"anghami.com",
+	"wynk.in",
+	"hungama.com",
+	"napster.com",
+	"kugou.com",
+	"kuwo.cn",
+	"qq.com",
+	"music.163.com", "163sub.com",
+	"iheart.com",
+	"tunein.com",
+	"pandora.com",
+	"last.fm",
+	"genius.com",
+
+	// Video Portals
+	"dailymotion.com", "dai.ly",
+	"vimeo.com",
+	"vk.com",
+	"rumble.com",
+	"streamable.com",
+	"ok.ru",
+	"coub.com",
+	"nicovideo.jp", "niconico.jp",
+	"odysee.com", "lbry.tv",
+	"bitchute.com",
+	"veoh.com",
+	"rutube.ru",
+	"ted.com",
+	"archive.org",
+	"youku.com",
+	"iq.com", "iqiyi.com",
+	"peertube",
+	"afreecatv.com",
+	"trovo.live",
+	"twitch.tv",
+	"kick.com",
+	"bilibili.com", "b23.tv",
+	"mxplayer.in",
+	"redbull.com",
+	"izlesene.com",
+	"newgrounds.com",
+	"imdb.com",
+
+	// Media Hosting & Storage
+	"imgur.com",
+	"loom.com",
+	"wistia.com", "wistia.net",
+	"flickr.com",
+	"smugmug.com",
+	"artstation.com",
+	"deviantart.com",
+	"pixiv.net",
+	"behance.net",
+	"dribbble.com",
+	"unsplash.com",
+	"pexels.com",
+	"pixabay.com",
+	"giphy.com",
+	"tenor.com",
+	"terabox.com", "teraboxapp.com", "1024tera.com",
+}
+
 func isSupportedPlatformURL(query string) bool {
 	q := strings.ToLower(strings.TrimSpace(query))
-	for _, domain := range []string{
-		"instagram.com", "tiktok.com", "soundcloud.com", "facebook.com", "fb.watch", "pin.it", "pinterest.com",
-	} {
-		if strings.Contains(q, domain) {
-			return true
+	if !strings.HasPrefix(q, "http://") && !strings.HasPrefix(q, "https://") {
+		return false
+	}
+	u, err := url.Parse(q)
+	if err == nil && u.Host != "" {
+		host := strings.ToLower(u.Host)
+		for _, domain := range supportedPlatformDomains {
+			if strings.Contains(host, domain) || strings.Contains(q, domain) {
+				return true
+			}
+		}
+	} else {
+		for _, domain := range supportedPlatformDomains {
+			if strings.Contains(q, domain) {
+				return true
+			}
 		}
 	}
 	return false
@@ -128,10 +240,27 @@ func (r *RiteshApiPlatform) Get(query string, video bool) ([]*state.Track, error
 		trackID = hex.EncodeToString(h[:10])
 	}
 
+	title := strings.TrimSpace(resp.Title)
+	if title == "" {
+		if resp.Description != "" {
+			lines := strings.Split(strings.TrimSpace(resp.Description), "\n")
+			if len(lines) > 0 && lines[0] != "" {
+				title = strings.TrimSpace(lines[0])
+			}
+		}
+		if title == "" {
+			if resp.Platform != "" {
+				title = strings.ToUpper(resp.Platform[:1]) + resp.Platform[1:] + " Media"
+			} else {
+				title = "Multi-Platform Track"
+			}
+		}
+	}
+
 	isVideo := video || resp.MediaType == "video"
 	track := &state.Track{
 		ID:       trackID,
-		Title:    resp.Title,
+		Title:    title,
 		Duration: resp.Duration,
 		Artwork:  resp.Thumbnail,
 		URL:      query,
@@ -203,11 +332,23 @@ func (r *RiteshApiPlatform) Download(
 			return "", fmt.Errorf("riteshapi extract failed: %s", errMsg)
 		}
 
+		dlURL := extResp.DownloadURL
+		if strings.HasPrefix(dlURL, "/") {
+			dlURL = apiURL + dlURL
+		}
+		if config.RiteshAPIKey != "" && !strings.Contains(dlURL, "api_key=") {
+			if strings.Contains(dlURL, "?") {
+				dlURL += "&api_key=" + url.QueryEscape(config.RiteshAPIKey)
+			} else {
+				dlURL += "?api_key=" + url.QueryEscape(config.RiteshAPIKey)
+			}
+		}
+
 		dlResp, dlErr := rc.R().
 			SetContext(dctx).
 			SetHeader("User-Agent", "KanhaMusic/1.0").
 			SetResponseSaveFileName(path).
-			Get(extResp.DownloadURL)
+			Get(dlURL)
 		if dlErr != nil {
 			os.Remove(path)
 			return "", dlErr
