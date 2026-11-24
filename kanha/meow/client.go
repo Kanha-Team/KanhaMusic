@@ -1,6 +1,5 @@
 package gotdbot
 
-
 import (
 	"bufio"
 	"context"

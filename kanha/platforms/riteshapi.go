@@ -63,7 +63,7 @@ func init() {
 }
 
 func (r *RiteshApiPlatform) Name() state.PlatformName { return PlatformRiteshApi }
-func (r *RiteshApiPlatform) Priority() int             { return 85 }
+func (r *RiteshApiPlatform) Priority() int            { return 85 }
 
 // supportedPlatformDomains contains 90+ platforms supported by Ritesh API /api/platform/extract
 var supportedPlatformDomains = []string{
@@ -401,7 +401,7 @@ func RiteshHealth() (bool, error) {
 	}
 
 	rResp, err := rc.R().
-		SetTimeout(5 * time.Second).
+		SetTimeout(5*time.Second).
 		SetHeader("User-Agent", "KanhaMusic/1.0").
 		SetResult(&resp).
 		Get(reqURL)
@@ -1015,4 +1015,3 @@ func cloneTracks(in []*state.Track) []*state.Track {
 	}
 	return out
 }
-
