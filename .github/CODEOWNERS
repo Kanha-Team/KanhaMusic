@@ -1,0 +1,4 @@
+# Global Code Owners for KanhaMusic
+* @Kanha-Team
+*.go @Kanha-Team
+.github/ @Kanha-Team

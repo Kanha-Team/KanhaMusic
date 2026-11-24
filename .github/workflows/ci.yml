@@ -1,0 +1,68 @@
+name: KanhaMusic CI (Build, Format & Docker)
+
+on:
+  push:
+    branches:
+      - dev
+      - master
+  pull_request:
+    branches:
+      - dev
+      - master
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    if: github.actor != 'github-actions[bot]'
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.26"
+          cache: true
+
+      - name: Format Check & Fix (gofmt)
+        run: |
+          gofmt -s -w .
+
+      - name: Commit and Push formatting fixes
+        if: github.event_name == 'push'
+        shell: bash
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "Formatting changes detected! Committing fixes..."
+            git add -A
+            git commit -m "chore: auto-format code with gofmt"
+            git pull --rebase origin ${{ github.ref_name }} || true
+            git push origin ${{ github.ref_name }}
+          else
+            echo "Code is cleanly formatted!"
+          fi
+
+      - name: Install dependencies & CGO libraries
+        run: |
+          sudo apt-get update && sudo apt-get install -y zlib1g-dev
+          chmod +x install.sh
+          ./install.sh -n -t --quiet --skip-summary
+
+      - name: Compile Go binary
+        run: |
+          CGO_ENABLED=1 go build -v -trimpath -ldflags="-w -s" -o app ./cmd/app/
+
+      - name: Build Docker image
+        run: |
+          docker build . --file Dockerfile --tag kanhamusic:latest
