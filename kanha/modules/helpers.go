@@ -72,7 +72,7 @@ func shouldShowThumb(chatID int64) bool {
 func nowPlayingText(chatID int64, t *state.Track) string {
 	return F(chatID, "stream_now_playing", locales.Arg{
 		"url":      t.URL,
-		"title":    utils.EscapeHTML(utils.ShortTitle(t.Title, 45)),
+		"title":    utils.EscapeHTML(utils.ShortTitle(t.Title, 25)),
 		"duration": utils.FormatDuration(t.Duration),
 		"by":       t.Requester,
 	})
