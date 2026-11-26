@@ -181,6 +181,14 @@ func GetStopConfirmMarkup(
 }
 
 func GetPlayMarkup(chatID int64, r *RoomState, queued bool) td.ReplyMarkup {
+	if queued {
+		return &td.ReplyMarkupInlineKeyboard{
+			Rows: [][]td.InlineKeyboardButton{
+				{DataBtn(F(chatID, "CLOSE_BTN"), "close")},
+			},
+		}
+	}
+
 	prefix := fmt.Sprintf("room:%d:", r.ID)
 	track := r.Track()
 	duration := 0
@@ -195,13 +203,11 @@ func GetPlayMarkup(chatID int64, r *RoomState, queued bool) td.ReplyMarkup {
 		duration,
 	)
 
-	rows := make([][]td.InlineKeyboardButton, 0, 4)
+	rows := make([][]td.InlineKeyboardButton, 0, 5)
 
-	if !queued {
-		rows = append(rows, []td.InlineKeyboardButton{
-			DataBtn(progress, "progress"),
-		})
-	}
+	rows = append(rows, []td.InlineKeyboardButton{
+		DataBtn(progress, "progress"),
+	})
 
 	rows = append(rows, []td.InlineKeyboardButton{
 		DataBtn("▷", prefix+"resume"),

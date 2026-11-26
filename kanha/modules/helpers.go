@@ -111,7 +111,7 @@ func showTrackMessage(
 		DisableWebPagePreview: true,
 	}
 
-	if t.Artwork != "" && shouldShowThumb(chatID) {
+	if !queued && t.Artwork != "" && shouldShowThumb(chatID) {
 		content := &td.InputMessagePhoto{
 			Photo: &td.InputPhoto{
 				Photo: td.InputFileRemote{Id: utils.CleanURL(t.Artwork)},
