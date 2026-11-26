@@ -15,7 +15,7 @@ func (ctx *Context) connectCall(
 	jsonParams string,
 ) error {
 	ctx.waitConnectMutex.Lock()
-	waitChan := make(chan error)
+	waitChan := make(chan error, 1)
 	ctx.waitConnect[chatId] = waitChan
 	ctx.waitConnectMutex.Unlock()
 
@@ -162,14 +162,21 @@ func (ctx *Context) connectCall(
 			if err != nil {
 				return err
 			}
+			pc, ok := confirmRes.PhoneCall.(*tg.PhoneCallObj)
+			if !ok {
+				return fmt.Errorf("unexpected phone call type %T", confirmRes.PhoneCall)
+			}
 			ctx.p2pConfigsMutex.Lock()
-			p2pConfig.PhoneCall = confirmRes.PhoneCall.(*tg.PhoneCallObj)
+			p2pConfig.PhoneCall = pc
 			ctx.p2pConfigsMutex.Unlock()
 		}
 
 		ctx.p2pConfigsMutex.RLock()
 		phoneCall := p2pConfig.PhoneCall
 		ctx.p2pConfigsMutex.RUnlock()
+		if phoneCall == nil {
+			return fmt.Errorf("missing phone call state for chat %d", chatId)
+		}
 
 		err = ctx.binding.ConnectP2P(
 			chatId,
@@ -202,6 +209,11 @@ func (ctx *Context) connectCall(
 			return err
 		}
 
+		if ctx.self == nil {
+			ctx.binding.Stop(chatId)
+			return fmt.Errorf("client self user not initialized")
+		}
+
 		resultParams := "{\"transport\": null}"
 		callResRaw, err := ctx.app.PhoneJoinGroupCall(
 			&tg.PhoneJoinGroupCallParams{
@@ -222,7 +234,11 @@ func (ctx *Context) connectCall(
 			return err
 		}
 
-		callRes := callResRaw.(*tg.UpdatesObj)
+		callRes, ok := callResRaw.(*tg.UpdatesObj)
+		if !ok {
+			ctx.binding.Stop(chatId)
+			return fmt.Errorf("unexpected join group call response %T", callResRaw)
+		}
 		for _, u := range callRes.Updates {
 			switch update := u.(type) {
 			case *tg.UpdateGroupCallConnection:

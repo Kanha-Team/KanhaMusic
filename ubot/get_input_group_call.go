@@ -36,13 +36,21 @@ func (ctx *Context) GetInputGroupCall(chatId int64) (tg.InputGroupCall, error) {
 		if err != nil {
 			return nil, err
 		}
-		retrievedCall = fullChat.FullChat.(*tg.ChannelFull).Call
+		ch, ok := fullChat.FullChat.(*tg.ChannelFull)
+		if !ok {
+			return nil, fmt.Errorf("unexpected full channel type %T", fullChat.FullChat)
+		}
+		retrievedCall = ch.Call
 	case *tg.InputPeerChat:
 		fullChat, err := ctx.app.MessagesGetFullChat(chatPeer.ChatID)
 		if err != nil {
 			return nil, err
 		}
-		retrievedCall = fullChat.FullChat.(*tg.ChatFullObj).Call
+		ch, ok := fullChat.FullChat.(*tg.ChatFullObj)
+		if !ok {
+			return nil, fmt.Errorf("unexpected full chat type %T", fullChat.FullChat)
+		}
+		retrievedCall = ch.Call
 	default:
 		return nil, fmt.Errorf("chatId %d is not a group call", chatId)
 	}

@@ -1,7 +1,9 @@
 package ubot
 
 import (
+	"fmt"
 	"slices"
+	"time"
 
 	tg "github.com/amarnathcjd/gogram/telegram"
 
@@ -43,7 +45,7 @@ func (ctx *Context) joinPresentation(chatId int64, join bool) error {
 		}
 
 		ctx.waitConnectMutex.Lock()
-		waitChan := make(chan error)
+		waitChan := make(chan error, 1)
 		ctx.waitConnect[chatId] = waitChan
 		ctx.waitConnectMutex.Unlock()
 
@@ -67,7 +69,10 @@ func (ctx *Context) joinPresentation(chatId int64, join bool) error {
 			return err
 		}
 
-		callRes := callResRaw.(*tg.UpdatesObj)
+		callRes, ok := callResRaw.(*tg.UpdatesObj)
+		if !ok {
+			return fmt.Errorf("unexpected presentation response %T", callResRaw)
+		}
 		for _, u := range callRes.Updates {
 			switch update := u.(type) {
 			case *tg.UpdateGroupCallConnection:
@@ -80,7 +85,14 @@ func (ctx *Context) joinPresentation(chatId int64, join bool) error {
 			return err
 		}
 
-		<-waitChan
+		select {
+		case err = <-waitChan:
+			if err != nil {
+				return err
+			}
+		case <-time.After(20 * time.Second):
+			return ErrConnectionTimeout
+		}
 
 		ctx.presentationsMutex.Lock()
 		ctx.presentations = append(ctx.presentations, chatId)

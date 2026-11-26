@@ -89,17 +89,6 @@ func (t *Track) MarkAutoplay(requester, token string) {
 	t.EngineToken = token
 }
 
-// IsVerifiedAutoplay checks if this track was flagged by autoplay engine.
-func (t *Track) IsVerifiedAutoplay(token string) bool {
-	if t == nil || !t.IsAutoplay {
-		return false
-	}
-	if token != "" && t.EngineToken != token {
-		return false
-	}
-	return true
-}
-
 // NormalizeTrackTitle cleans up a song title to prevent duplicate plays.
 func NormalizeTrackTitle(title string) string {
 	if title == "" {

@@ -120,9 +120,13 @@ func pingHandler(c *td.Client, m *td.Message) error {
 		diskUsage = fmt.Sprintf("%.2f / %.2f GB", usedGB, totalGB)
 	}
 
+	botName := ""
+	if c.Me != nil {
+		botName = td.Mention(c.Me.FirstName, c.Me.Id, true, true)
+	}
 	msg := F(chatID, "ping_result", locales.Arg{
 		"latency":    latency,
-		"bot":        td.Mention(c.Me.FirstName, c.Me.Id, true, true),
+		"bot":        botName,
 		"uptime":     uptimeStr,
 		"ram_info":   ramInfo,
 		"cpu_usage":  cpuUsage,

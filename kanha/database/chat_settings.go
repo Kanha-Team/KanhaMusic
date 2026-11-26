@@ -19,10 +19,13 @@ package database
 
 import (
 	"fmt"
+	"sync"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 )
+
+var chatSettingsMu sync.RWMutex
 
 type ChatSettings struct {
 	ChatID                int64     `bson:"_id"`
@@ -48,6 +51,25 @@ func defaultChatSettings(chatID int64) *ChatSettings {
 }
 
 func getChatSettings(chatID int64) (*ChatSettings, error) {
+	chatSettingsMu.RLock()
+	if settings, found := chatSettingsCache.Get(chatID); found {
+		snap := cloneChatSettings(settings)
+		chatSettingsMu.RUnlock()
+		return snap, nil
+	}
+	chatSettingsMu.RUnlock()
+
+	chatSettingsMu.Lock()
+	defer chatSettingsMu.Unlock()
+
+	settings, err := getChatSettingsLocked(chatID)
+	if err != nil {
+		return nil, err
+	}
+	return cloneChatSettings(settings), nil
+}
+
+func getChatSettingsLocked(chatID int64) (*ChatSettings, error) {
 	if settings, found := chatSettingsCache.Get(chatID); found {
 		return settings, nil
 	}
@@ -77,7 +99,16 @@ func getChatSettings(chatID int64) (*ChatSettings, error) {
 	return &settings, nil
 }
 
-func updateChatSettings(settings *ChatSettings) error {
+func cloneChatSettings(s *ChatSettings) *ChatSettings {
+	if s == nil {
+		return nil
+	}
+	cp := *s
+	cp.AuthUsers = append([]int64(nil), s.AuthUsers...)
+	return &cp
+}
+
+func updateChatSettingsLocked(settings *ChatSettings) error {
 	ctx, cancel := ctx()
 	defer cancel()
 
@@ -99,6 +130,12 @@ func updateChatSettings(settings *ChatSettings) error {
 	return nil
 }
 
+func updateChatSettings(settings *ChatSettings) error {
+	chatSettingsMu.Lock()
+	defer chatSettingsMu.Unlock()
+	return updateChatSettingsLocked(cloneChatSettings(settings))
+}
+
 func GetChatSettings(chatID int64) (*ChatSettings, error) {
 	return getChatSettings(chatID)
 }
@@ -108,13 +145,16 @@ func UpdateChatSettings(settings *ChatSettings) error {
 }
 
 func modifyChatSettings(chatID int64, fn func(*ChatSettings) bool) error {
-	settings, err := getChatSettings(chatID)
+	chatSettingsMu.Lock()
+	defer chatSettingsMu.Unlock()
+
+	settings, err := getChatSettingsLocked(chatID)
 	if err != nil {
 		return err
 	}
 
 	if fn(settings) {
-		return updateChatSettings(settings)
+		return updateChatSettingsLocked(settings)
 	}
 
 	return nil

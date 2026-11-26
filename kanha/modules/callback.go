@@ -81,14 +81,14 @@ func roomHandle(c *td.Client, u *td.UpdateNewCallbackQuery) error {
 	}
 	action := parts[2]
 
+	if !checkAdminOrAuth(c, u, chatID) {
+		return nil
+	}
+
 	r, ok := core.RoomFor(roomID)
 	if !ok || !r.Active() {
 		u.Answer(c, 0, true, F(chatID, "room_not_active_cb"), "")
 		u.EditMessageText(c, F(chatID, "room_no_active"), nil)
-		return nil
-	}
-
-	if !checkAdminOrAuth(c, u, chatID) {
 		return nil
 	}
 
@@ -187,10 +187,6 @@ func handlePauseAction(c *td.Client, u *td.UpdateNewCallbackQuery, r *core.RoomS
 		return nil
 	}
 
-	if r.Muted() {
-		r.Unmute()
-	}
-
 	u.Answer(c, 0, true, F(chatID, "cb_pause_success", locales.Arg{
 		"position": utils.FormatDuration(r.Position()),
 	}), "")
@@ -269,6 +265,12 @@ func handleSkipAction(c *td.Client, u *td.UpdateNewCallbackQuery, r *core.RoomSt
 
 	r.SetLoop(0)
 	t := r.NextTrack()
+	if t == nil {
+		scheduleOldPlayingMessage(r)
+		core.DropRoom(r.ID)
+		u.Answer(c, 0, true, F(chatID, "cb_skip_queue_empty"), "")
+		return nil
+	}
 
 	statusMsg := cbRespond(c, u, F(chatID, "stream_downloading_next"), nil)
 	if statusMsg == nil {
@@ -302,11 +304,14 @@ func handleSkipAction(c *td.Client, u *td.UpdateNewCallbackQuery, r *core.RoomSt
 	statusMsg = sendNowPlaying(c, statusMsg, chatID, r, t)
 	r.SetStatusMsg(statusMsg)
 
-	_, err = statusMsg.ReplyText(c, F(chatID, "cb_skip_edited", locales.Arg{
-		"user": mentionOfSender(c, u.SenderUserId),
-	}), &td.SendTextMessageOpts{ParseMode: "HTML"})
+	if statusMsg != nil {
+		_, err = statusMsg.ReplyText(c, F(chatID, "cb_skip_edited", locales.Arg{
+			"user": mentionOfSender(c, u.SenderUserId),
+		}), &td.SendTextMessageOpts{ParseMode: "HTML"})
+		return err
+	}
 
-	return err
+	return nil
 }
 
 func handleSeekAction(c *td.Client, u *td.UpdateNewCallbackQuery, r *core.RoomState, action string) error {
@@ -338,10 +343,15 @@ func handleSeekAction(c *td.Client, u *td.UpdateNewCallbackQuery, r *core.RoomSt
 	logger.Infof("Callback → seek %s %ds, chatID=%d", action, seconds, chatID)
 
 	if isBackward {
+		var seekErr error
 		if r.Position() <= seconds {
-			r.Seek(-r.Position())
+			seekErr = r.Seek(-r.Position())
 		} else {
-			r.Seek(-seconds)
+			seekErr = r.Seek(-seconds)
+		}
+		if seekErr != nil {
+			u.Answer(c, 0, true, F(chatID, "seek_failed", locales.Arg{"error": seekErr.Error()}), "")
+			return nil
 		}
 		u.Answer(c, 0, true, F(chatID, "cb_seekback_success", locales.Arg{"seconds": seconds}), "")
 		replyToCallback(c, u, F(chatID, "cb_seekback_edited", locales.Arg{
@@ -353,7 +363,10 @@ func handleSeekAction(c *td.Client, u *td.UpdateNewCallbackQuery, r *core.RoomSt
 			u.Answer(c, 0, true, F(chatID, "cb_seek_near_end", locales.Arg{"seconds": seconds}), "")
 			return nil
 		}
-		r.Seek(seconds)
+		if seekErr := r.Seek(seconds); seekErr != nil {
+			u.Answer(c, 0, true, F(chatID, "seek_failed", locales.Arg{"error": seekErr.Error()}), "")
+			return nil
+		}
 		u.Answer(c, 0, true, F(chatID, "cb_seek_success", locales.Arg{"seconds": seconds}), "")
 		replyToCallback(c, u, F(chatID, "cb_seek_edited", locales.Arg{
 			"seconds": seconds,

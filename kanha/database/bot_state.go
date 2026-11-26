@@ -19,10 +19,13 @@ package database
 
 import (
 	"fmt"
+	"sync"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 )
+
+var botStateMu sync.RWMutex
 
 type UsersChats struct {
 	Users []int64 `bson:"users"`
@@ -70,17 +73,38 @@ func newDefaultBotState() *BotState {
 }
 
 func getBotState() (*BotState, error) {
+	botStateMu.RLock()
 	if cached, found := dbCache.Get(botStateCacheKey); found {
-		if state, ok := cached.(*BotState); ok {
-			return state, nil
+		if st, ok := cached.(*BotState); ok {
+			snap := cloneBotState(st)
+			botStateMu.RUnlock()
+			return snap, nil
+		}
+	}
+	botStateMu.RUnlock()
+
+	botStateMu.Lock()
+	defer botStateMu.Unlock()
+
+	st, err := getBotStateLocked()
+	if err != nil {
+		return nil, err
+	}
+	return cloneBotState(st), nil
+}
+
+func getBotStateLocked() (*BotState, error) {
+	if cached, found := dbCache.Get(botStateCacheKey); found {
+		if st, ok := cached.(*BotState); ok {
+			return st, nil
 		}
 	}
 
 	ctx, cancel := ctx()
 	defer cancel()
 
-	var state BotState
-	err := settingsColl.FindOne(ctx, bson.M{"_id": "global"}).Decode(&state)
+	var st BotState
+	err := settingsColl.FindOne(ctx, bson.M{"_id": "global"}).Decode(&st)
 
 	if err == mongo.ErrNoDocuments {
 		s := newDefaultBotState()
@@ -92,12 +116,25 @@ func getBotState() (*BotState, error) {
 		return nil, fmt.Errorf("failed to get bot state: %w", err)
 	}
 
-	buildIndexes(&state)
-	dbCache.Set(botStateCacheKey, &state)
-	return &state, nil
+	buildIndexes(&st)
+	dbCache.Set(botStateCacheKey, &st)
+	return &st, nil
 }
 
-func updateBotState(newState *BotState) error {
+func cloneBotState(s *BotState) *BotState {
+	if s == nil {
+		return nil
+	}
+	cp := *s
+	cp.Served.Users = append([]int64(nil), s.Served.Users...)
+	cp.Served.Chats = append([]int64(nil), s.Served.Chats...)
+	cp.Sudoers = append([]int64(nil), s.Sudoers...)
+	cp.Blacklisted.Users = append([]int64(nil), s.Blacklisted.Users...)
+	cp.Blacklisted.Chats = append([]int64(nil), s.Blacklisted.Chats...)
+	return &cp
+}
+
+func updateBotStateLocked(newState *BotState) error {
 	ctx, cancel := ctx()
 	defer cancel()
 
@@ -116,13 +153,16 @@ func updateBotState(newState *BotState) error {
 }
 
 func modifyBotState(fn func(*BotState) bool) error {
-	state, err := getBotState()
+	botStateMu.Lock()
+	defer botStateMu.Unlock()
+
+	st, err := getBotStateLocked()
 	if err != nil {
 		return err
 	}
 
-	if fn(state) {
-		return updateBotState(state)
+	if fn(st) {
+		return updateBotStateLocked(st)
 	}
 
 	return nil

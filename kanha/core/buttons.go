@@ -116,19 +116,6 @@ func UrlBtn(text, url string) td.InlineKeyboardButton {
 	return styleURLBtn(text, url, randomColour())
 }
 
-func AddMeMarkup(chatID int64) td.ReplyMarkup {
-	return &td.ReplyMarkupInlineKeyboard{
-		Rows: [][]td.InlineKeyboardButton{
-			{
-				UrlBtn(
-					F(chatID, "ADD_ME_BTN"),
-					"https://t.me/"+botUsername()+"?startgroup&admin=invite_users",
-				),
-			},
-		},
-	}
-}
-
 func GetCancelKeyboard(chatID int64) td.ReplyMarkup {
 	return &td.ReplyMarkupInlineKeyboard{
 		Rows: [][]td.InlineKeyboardButton{

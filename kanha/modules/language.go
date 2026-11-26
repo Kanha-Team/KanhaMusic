@@ -28,7 +28,6 @@ import (
 	"KanhaMusic/kanha/core"
 	"KanhaMusic/kanha/database"
 	"KanhaMusic/kanha/locales"
-	"KanhaMusic/kanha/utils"
 )
 
 func langHandler(c *td.Client, m *td.Message) error {
@@ -130,7 +129,7 @@ func langCallbackHandler(c *td.Client, u *td.UpdateNewCallbackQuery) error {
 		return nil
 	}
 
-	if isAdmin, _ := utils.IsChatAdmin(c, chatID, u.SenderUserId); !isAdmin {
+	if !canUseAdminCommand(c, chatID, u.SenderUserId) {
 		_ = u.Answer(c, 0, true, F(chatID, "only_admin_cb"), "")
 		return nil
 	}

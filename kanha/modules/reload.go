@@ -98,7 +98,7 @@ func handleReload(c *td.Client, m *td.Message, cplay bool) error {
 
 	isAdmin := slices.Contains(admins, m.SenderID())
 	floodDuration := utils.IfElse(isAdmin, 2*time.Minute, 5*time.Minute)
-	utils.SetFlood(fmt.Sprintf("reload:%d%d", roomID, m.SenderID()), floodDuration)
+	utils.SetFlood(fmt.Sprintf("reload:%d:%d", roomID, m.SenderID()), floodDuration)
 
 	cs, err := core.ChatStateFor(roomID)
 	if err != nil {
@@ -136,7 +136,7 @@ func handleReload(c *td.Client, m *td.Message, cplay bool) error {
 }
 
 func checkReloadFlood(c *td.Client, m *td.Message, chatID, roomID int64) (bool, error) {
-	floodKey := fmt.Sprintf("reload:%d%d", roomID, m.SenderID())
+	floodKey := fmt.Sprintf("reload:%d:%d", roomID, m.SenderID())
 	if remaining := utils.GetFlood(floodKey); remaining > 0 {
 		_, err := m.ReplyText(c, F(
 			chatID,

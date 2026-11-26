@@ -87,6 +87,12 @@ func (s *vcLoggerState) stop(chatID int64) bool {
 		delete(s.activeChats, chatID)
 		delete(s.activeUsers, chatID)
 	}
+	prefix := fmt.Sprintf("%d:", chatID)
+	for k := range s.userJoinCount {
+		if strings.HasPrefix(k, prefix) {
+			delete(s.userJoinCount, k)
+		}
+	}
 	s.mu.Unlock()
 	return running
 }
@@ -305,6 +311,12 @@ func vcloggerHandler(c *td.Client, m *td.Message) error {
 	senderID := m.SenderID()
 
 	if senderID == 0 {
+		if sc, ok := m.SenderId.(*td.MessageSenderChat); !ok || sc.ChatId != chatID {
+			_, err := m.ReplyText(c, F(chatID, "vclog_no_permission"), &td.SendTextMessageOpts{
+				ParseMode: "HTML",
+			})
+			return err
+		}
 		// Anonymous admin
 		args := strings.Fields(m.Args())
 		if len(args) == 0 {

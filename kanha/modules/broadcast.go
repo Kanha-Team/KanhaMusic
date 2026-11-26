@@ -735,7 +735,7 @@ func handleBroadcastCancel(c *td.Client, m *td.Message) error {
 }
 
 func broadcastCancelCB(c *td.Client, cb *td.UpdateNewCallbackQuery) error {
-	if cb.SenderUserId != config.OwnerID {
+	if config.OwnerID == 0 || cb.SenderUserId != config.OwnerID {
 		cb.Answer(c, 0, true, F(cb.ChatId, "broadcast_cancel_owner_only"), "")
 		return nil
 	}

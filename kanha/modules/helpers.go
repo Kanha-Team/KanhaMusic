@@ -36,8 +36,6 @@ import (
 )
 
 func getEffectiveRoom(chatID int64, cplay bool) (*core.RoomState, error) {
-	origChatID := chatID
-
 	if cplay {
 		cplayID, err := database.LinkedChannel(chatID)
 		if err != nil || cplayID == 0 {
@@ -49,12 +47,7 @@ func getEffectiveRoom(chatID int64, cplay bool) (*core.RoomState, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to get assistant for your chat: %w", err)
 	}
-	// The room is shared with every other command that uses this chat (and,
-	// for cplay, with the linked channel's own /play), so its ChatID must not
-	// be rewritten here. origChatID is kept only for the caller's context.
-	_ = origChatID
-	r := core.CreateRoom(chatID, ass)
-	return r, nil
+	return core.CreateRoom(chatID, ass), nil
 }
 
 func shouldShowThumb(chatID int64) bool {
@@ -393,7 +386,7 @@ func canBypassMaintenance(userID int64) bool {
 	if !isMaint {
 		return true
 	}
-	if userID == config.OwnerID {
+	if config.OwnerID != 0 && userID == config.OwnerID {
 		return true
 	}
 	ok, _ := database.IsSudo(userID)

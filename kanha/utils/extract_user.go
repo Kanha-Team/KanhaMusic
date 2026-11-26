@@ -75,12 +75,11 @@ func extractUserFromEntities(c *td.Client, m *td.Message, text string) (int64, e
 		case *td.TextEntityTypeMentionName:
 			return e.UserId, nil
 		case *td.TextEntityTypeMention:
-			start := int(ent.Offset)
-			end := start + int(ent.Length)
-			if start < 0 || end > len(text) || start > end {
+			mention, ok := sliceUTF16(text, ent.Offset, ent.Length)
+			if !ok {
 				continue
 			}
-			username := strings.TrimPrefix(text[start:end], "@")
+			username := strings.TrimPrefix(mention, "@")
 			uid, err := resolveUserID(c, username)
 			if err != nil {
 				return 0, err

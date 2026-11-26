@@ -20,14 +20,16 @@ package utils
 import (
 	"fmt"
 	"slices"
+	"sync"
 	"time"
 
 	td "github.com/Kanha/Meow"
 )
 
 var (
-	adminCache = NewCache[int64, []int64](24 * time.Hour)
-	ownerCache = NewCache[int64, int64](24 * time.Hour)
+	adminCache   = NewCache[int64, []int64](24 * time.Hour)
+	ownerCache   = NewCache[int64, int64](24 * time.Hour)
+	adminCacheMu sync.Mutex
 )
 
 // IsChatAdmin checks if a user is an admin in a chat.
@@ -73,6 +75,9 @@ func GetChatOwner(c *td.Client, chatID int64) (int64, error) {
 // AddChatAdmin adds a user to the cached admin list of a chat.
 // If the chat is not cached yet, its admin data is fetched first.
 func AddChatAdmin(c *td.Client, chatID, userID int64) {
+	adminCacheMu.Lock()
+	defer adminCacheMu.Unlock()
+
 	ids, ok := adminCache.Get(chatID)
 	if !ok {
 		var err error
@@ -83,13 +88,17 @@ func AddChatAdmin(c *td.Client, chatID, userID int64) {
 	}
 
 	if !slices.Contains(ids, userID) {
-		adminCache.Set(chatID, append(ids, userID))
+		updated := append(slices.Clone(ids), userID)
+		adminCache.Set(chatID, updated)
 	}
 }
 
 // RemoveChatAdmin removes a user from the cached admin list of a chat.
 // If the chat is not cached yet, its admin data is fetched first.
 func RemoveChatAdmin(c *td.Client, chatID, userID int64) {
+	adminCacheMu.Lock()
+	defer adminCacheMu.Unlock()
+
 	ids, ok := adminCache.Get(chatID)
 	if !ok {
 		var err error
@@ -99,9 +108,10 @@ func RemoveChatAdmin(c *td.Client, chatID, userID int64) {
 		}
 	}
 
-	adminCache.Set(chatID, slices.DeleteFunc(ids, func(id int64) bool {
+	updated := slices.DeleteFunc(slices.Clone(ids), func(id int64) bool {
 		return id == userID
-	}))
+	})
+	adminCache.Set(chatID, updated)
 }
 
 // fetchAdmins fetches chat admin IDs and the owner from Telegram and caches them.

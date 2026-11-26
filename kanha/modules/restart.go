@@ -87,7 +87,7 @@ func getActiveRoomForChat(chatID int64) (*core.RoomState, bool) {
 func restartConfirmHandler(c *td.Client, u *td.UpdateNewCallbackQuery) error {
 	chatID := u.ChatId
 
-	if u.SenderUserId != config.OwnerID {
+	if config.OwnerID == 0 || u.SenderUserId != config.OwnerID {
 		_ = u.Answer(c, 0, true, F(chatID, "only_owner"), "")
 		return nil
 	}
@@ -136,12 +136,16 @@ func executeRestart(
 		return nil
 	}
 
+	botMention := ""
+	if c.Me != nil {
+		botMention = mentionOf(c.Me, c.Me.Id)
+	}
 	for roomChatID := range core.AllRooms() {
 		core.DropRoom(roomChatID)
 		if _, err := c.SendTextMessage(roomChatID, F(roomChatID, "restart_service", locales.Arg{
-			"bot": mentionOf(c.Me, c.Me.Id),
+			"bot": botMention,
 		}), nil); err != nil {
-			return err
+			logger.Warnf("restart: failed to notify room %d: %v", roomChatID, err)
 		}
 		time.Sleep(time.Second)
 	}

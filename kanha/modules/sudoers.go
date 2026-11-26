@@ -128,10 +128,9 @@ func handleAddSudo(c *td.Client, m *td.Message) error {
 
 	if config.SetCmds {
 		// Update commands for this sudo user
-		sudoCommands := append(
-			AllCommands.PrivateUserCommands,
-			AllCommands.PrivateSudoCommands...,
-		)
+		sudoCommands := make([]td.BotCommand, 0, len(AllCommands.PrivateUserCommands)+len(AllCommands.PrivateSudoCommands))
+		sudoCommands = append(sudoCommands, AllCommands.PrivateUserCommands...)
+		sudoCommands = append(sudoCommands, AllCommands.PrivateSudoCommands...)
 
 		if err := c.SetCommands(
 			sudoCommands,
@@ -237,7 +236,7 @@ func handleDelSudo(c *td.Client, m *td.Message) error {
 func handleGetSudoers(c *td.Client, m *td.Message) error {
 	chatID := m.ChatID()
 
-	floodKey := fmt.Sprintf("sudoers:%d%d", chatID, m.SenderID())
+	floodKey := fmt.Sprintf("sudoers:%d:%d", chatID, m.SenderID())
 	if remaining := utils.GetFlood(floodKey); remaining > 0 {
 		_, err := m.ReplyText(c, F(chatID, "flood_seconds", locales.Arg{
 			"duration": int(remaining.Seconds()),

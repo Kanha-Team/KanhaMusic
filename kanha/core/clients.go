@@ -369,6 +369,9 @@ func decodePyrogramSessionString(
 func decodeTelethonSessionString(
 	sessionString string,
 ) (*telegram.Session, error) {
+	if len(sessionString) < 2 {
+		return nil, fmt.Errorf("invalid session string length")
+	}
 	data, err := base64.URLEncoding.DecodeString(sessionString[1:])
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode base64: %v", err)

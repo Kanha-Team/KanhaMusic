@@ -54,7 +54,7 @@ func (ctx *Context) updateSources(chatId int64) error {
 			})
 		}
 
-		if participantId == ctx.self.ID && !participant.CanSelfUnmute {
+		if ctx.self != nil && participantId == ctx.self.ID && !participant.CanSelfUnmute {
 			shouldAddToMutedByAdmin = true
 		}
 	}

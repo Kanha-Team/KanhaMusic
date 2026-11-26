@@ -169,12 +169,12 @@ func setBotCommands(bot *td.Client) {
 		{&td.BotCommandScopeAllGroupChats{}, AllCommands.GroupUserCommands},
 		{
 			&td.BotCommandScopeAllChatAdministrators{},
-			append(AllCommands.GroupUserCommands, AllCommands.GroupAdminCommands...),
+			append(append([]td.BotCommand{}, AllCommands.GroupUserCommands...), AllCommands.GroupAdminCommands...),
 		},
 		{
 			&td.BotCommandScopeChat{ChatId: config.OwnerID},
 			append(
-				append(AllCommands.PrivateUserCommands, AllCommands.PrivateSudoCommands...),
+				append(append([]td.BotCommand{}, AllCommands.PrivateUserCommands...), AllCommands.PrivateSudoCommands...),
 				AllCommands.PrivateOwnerCommands...,
 			),
 		},
@@ -193,7 +193,7 @@ func setBotCommands(bot *td.Client) {
 		return
 	}
 
-	sudoCmds := append(AllCommands.PrivateUserCommands, AllCommands.PrivateSudoCommands...)
+	sudoCmds := append(append([]td.BotCommand{}, AllCommands.PrivateUserCommands...), AllCommands.PrivateSudoCommands...)
 	for _, id := range sudoers {
 		scope := &td.BotCommandScopeChat{ChatId: id}
 		if err := bot.SetCommands(sudoCmds, "", &td.SetCommandsOpts{Scope: scope}); err != nil {

@@ -49,24 +49,6 @@ func TotalServedUsers() (int, error) {
 	return len(users), nil
 }
 
-func IsServedChat(id int64) (bool, error) {
-	state, err := getBotState()
-	if err != nil {
-		return false, err
-	}
-	_, ok := state.servedChatsMap[id]
-	return ok, nil
-}
-
-func IsServedUser(id int64) (bool, error) {
-	state, err := getBotState()
-	if err != nil {
-		return false, err
-	}
-	_, ok := state.servedUsersMap[id]
-	return ok, nil
-}
-
 func AddServedChat(id int64) error {
 	return modifyBotState(func(s *BotState) bool {
 		var added bool

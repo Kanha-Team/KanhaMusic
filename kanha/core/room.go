@@ -109,11 +109,10 @@ func RoomFor(chatID int64) (*RoomState, bool) {
 
 // CreateRoom returns the room for a chat, creating it if it does not exist.
 func CreateRoom(chatID int64, ass *Assistant) *RoomState {
-	room, _ := createNewRoom(chatID, ass)
-	return room
+	return createNewRoom(chatID, ass)
 }
 
-func createNewRoom(chatID int64, ass *Assistant) (*RoomState, bool) {
+func createNewRoom(chatID int64, ass *Assistant) *RoomState {
 	roomsMu.Lock()
 	defer roomsMu.Unlock()
 
@@ -133,7 +132,7 @@ func createNewRoom(chatID int64, ass *Assistant) (*RoomState, bool) {
 		rooms[chatID] = room
 	}
 
-	return room, true
+	return room
 }
 
 // SetAssistant rebinds the room to another assistant (used after the
@@ -339,53 +338,6 @@ func (r *RoomState) AddPlayed(t *state.Track) {
 	r.addPlayedLocked(t)
 }
 
-// HasPlayed checks if a track ID or title was recently played.
-func (r *RoomState) HasPlayed(id, title string) bool {
-	if r == nil || r.Destroyed() {
-		return false
-	}
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-
-	targetID := "id:" + id
-	targetTitle := ""
-	if title != "" {
-		targetTitle = "title:" + state.NormalizeTrackTitle(title)
-	}
-
-	for _, item := range r.playedHistory {
-		if id != "" && item == targetID {
-			return true
-		}
-		if targetTitle != "" && item == targetTitle {
-			return true
-		}
-	}
-	return false
-}
-
-// PlayedHistory returns a copy of recently played track identifiers.
-func (r *RoomState) PlayedHistory() []string {
-	if r == nil || r.Destroyed() {
-		return nil
-	}
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-	out := make([]string, len(r.playedHistory))
-	copy(out, r.playedHistory)
-	return out
-}
-
-// ClearPlayedHistory resets the room's playback history buffer.
-func (r *RoomState) ClearPlayedHistory() {
-	if r == nil || r.Destroyed() {
-		return
-	}
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	r.playedHistory = make([]string, 0, 100)
-}
-
 // AutoplayToken returns the room's unique autoplay session validation token.
 func (r *RoomState) AutoplayToken() string {
 	if r == nil {
@@ -394,16 +346,6 @@ func (r *RoomState) AutoplayToken() string {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	return r.engineToken
-}
-
-// ValidateAutoplayEngine checks if autoplay is active and verified for this room.
-func (r *RoomState) ValidateAutoplayEngine() bool {
-	if r == nil || r.Destroyed() {
-		return false
-	}
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-	return r.autoplay && r.engineToken != ""
 }
 
 func (r *RoomState) SetStatusMsg(m *td.Message) {
@@ -560,13 +502,13 @@ func (r *RoomState) AddTracks(tracks []*state.Track) {
 
 func isTrackUsed(trackID string, skipChatID int64) bool {
 	for _, room := range rooms {
-		if room == nil || room.track == nil || room.ChatID == skipChatID {
+		if room == nil || room.ChatID == skipChatID || room.Destroyed() {
 			continue
 		}
-		if room.track.ID == trackID {
-			return true
-		}
-		if isTrackInQueue(trackID, room.queue) {
+		room.mu.RLock()
+		used := (room.track != nil && room.track.ID == trackID) || isTrackInQueue(trackID, room.queue)
+		room.mu.RUnlock()
+		if used {
 			return true
 		}
 	}
@@ -574,8 +516,7 @@ func isTrackUsed(trackID string, skipChatID int64) bool {
 }
 
 func isTrackInQueue(trackID string, queue []*state.Track) bool {
-	limit := min(len(queue), 2)
-	for _, q := range queue[:limit] {
+	for _, q := range queue {
 		if q != nil && q.ID == trackID {
 			return true
 		}

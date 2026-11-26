@@ -78,7 +78,10 @@ func statsHandler(c *td.Client, m *td.Message) error {
 	runtime.ReadMemStats(&memStats)
 
 	uptime := time.Since(config.StartTime).Minutes()
-	gcPerMin := float64(memStats.NumGC) / uptime
+	var gcPerMin float64
+	if uptime > 0 {
+		gcPerMin = float64(memStats.NumGC) / uptime
+	}
 
 	gcEmoji := "🟢"
 	switch {
@@ -92,23 +95,36 @@ func statsHandler(c *td.Client, m *td.Message) error {
 	cpuPercent, _ := cpu.Percent(0, false)
 	diskStat, _ := disk.Usage("/")
 
+	cpuVal := 0.0
 	cpuEmoji := "🟢"
 	if len(cpuPercent) > 0 {
+		cpuVal = cpuPercent[0]
 		switch {
-		case cpuPercent[0] > 70:
+		case cpuVal > 70:
 			cpuEmoji = "🔴"
-		case cpuPercent[0] > 40:
+		case cpuVal > 40:
 			cpuEmoji = "🟡"
 		}
 	}
 
-	ramUsagePercent := (float64(sysMem.Used) / float64(sysMem.Total)) * 100
+	var ramUsedGiB, ramTotalGiB, ramUsagePercent float64
+	if sysMem != nil && sysMem.Total > 0 {
+		ramUsagePercent = (float64(sysMem.Used) / float64(sysMem.Total)) * 100
+		ramUsedGiB = float64(sysMem.Used) / 1073741824
+		ramTotalGiB = float64(sysMem.Total) / 1073741824
+	}
 	ramEmoji := "🟢"
 	switch {
 	case ramUsagePercent > 80:
 		ramEmoji = "🔴"
 	case ramUsagePercent > 50:
 		ramEmoji = "🟡"
+	}
+
+	var storageUsedGiB, storageTotalGiB float64
+	if diskStat != nil {
+		storageUsedGiB = float64(diskStat.Used) / 1073741824
+		storageTotalGiB = float64(diskStat.Total) / 1073741824
 	}
 
 	servedChats, err1 := database.ServedChats()
@@ -140,12 +156,12 @@ func statsHandler(c *td.Client, m *td.Message) error {
 		"gc_emoji":          gcEmoji,
 		"gc_rate":           fmt.Sprintf("%.1f", gcPerMin),
 		"cpu_emoji":         cpuEmoji,
-		"cpu":               fmt.Sprintf("%.2f", cpuPercent[0]),
+		"cpu":               fmt.Sprintf("%.2f", cpuVal),
 		"ram_emoji":         ramEmoji,
-		"ram_used_gib":      fmt.Sprintf("%.2f", float64(sysMem.Used)/1073741824),
-		"ram_total_gib":     fmt.Sprintf("%.2f", float64(sysMem.Total)/1073741824),
-		"storage_used_gib":  fmt.Sprintf("%.2f", float64(diskStat.Used)/1073741824),
-		"storage_total_gib": fmt.Sprintf("%.2f", float64(diskStat.Total)/1073741824),
+		"ram_used_gib":      fmt.Sprintf("%.2f", ramUsedGiB),
+		"ram_total_gib":     fmt.Sprintf("%.2f", ramTotalGiB),
+		"storage_used_gib":  fmt.Sprintf("%.2f", storageUsedGiB),
+		"storage_total_gib": fmt.Sprintf("%.2f", storageTotalGiB),
 		"db_storage":        fmt.Sprintf("%.2f", interfaceToFloat(dbStorageSize)/1024/1024),
 		"db_data":           fmt.Sprintf("%.2f", interfaceToFloat(dbDataSize)/1024/1024),
 		"db_collections":    dbCollections,

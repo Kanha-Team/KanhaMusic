@@ -27,6 +27,7 @@ import (
 	"KanhaMusic/config"
 	"KanhaMusic/kanha/database"
 	"KanhaMusic/kanha/locales"
+	"KanhaMusic/kanha/logger"
 	"KanhaMusic/kanha/utils"
 )
 
@@ -68,7 +69,24 @@ For related commands, see <code>/delauth</code> and <code>/authlist</code>.`,
 • Shows only manually added auth users — the Owner, Assistant, and Sudoers are not listed but are always authorized.`
 }
 
+func checkChatAdmin(c *td.Client, m *td.Message) bool {
+	if isOwnerOrSudo(m.SenderID()) {
+		return true
+	}
+	if isAdmin, _ := utils.IsChatAdmin(c, m.ChatID(), m.SenderID()); isAdmin {
+		return true
+	}
+	if _, err := m.ReplyText(c, F(m.ChatID(), "only_admin"), nil); err != nil {
+		logger.Error(err)
+	}
+	return false
+}
+
 func addAuthHandler(c *td.Client, m *td.Message) error {
+	if !isSuperGroup(c, m) || !checkChatAdmin(c, m) {
+		return nil
+	}
+
 	chatID := m.ChatID()
 
 	if m.Args() == "" && m.ReplyToMessageID() == 0 {
@@ -96,7 +114,8 @@ func addAuthHandler(c *td.Client, m *td.Message) error {
 	}
 
 	// owner, bot, self, already auth, or admin — all treated the same
-	if userID == config.OwnerID || userID == c.Me.Id ||
+	if (config.OwnerID != 0 && userID == config.OwnerID) ||
+		(c.Me != nil && userID == c.Me.Id) ||
 		userID == m.SenderID() {
 		_, err := m.ReplyText(c, F(chatID, "cannot_authorize_user"), nil)
 		return err
@@ -159,6 +178,10 @@ func addAuthHandler(c *td.Client, m *td.Message) error {
 }
 
 func delAuthHandler(c *td.Client, m *td.Message) error {
+	if !isSuperGroup(c, m) || !checkChatAdmin(c, m) {
+		return nil
+	}
+
 	chatID := m.ChatID()
 
 	if m.Args() == "" && m.ReplyToMessageID() == 0 {

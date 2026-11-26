@@ -56,10 +56,6 @@ func (m *AssistantManager) Get(idx int) (*Assistant, error) {
 	return m.list[idx-1], nil
 }
 
-func (m *AssistantManager) First() (*Assistant, error) {
-	return m.Get(1)
-}
-
 func (m *AssistantManager) ForEach(fn func(*Assistant)) {
 	if m == nil {
 		return

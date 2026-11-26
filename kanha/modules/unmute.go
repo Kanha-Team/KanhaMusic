@@ -77,7 +77,13 @@ func handleUnmute(c *td.Client, m *td.Message, cplay bool) error {
 		return err
 	}
 
-	title := utils.EscapeHTML(utils.ShortTitle(r.Track().Title, 25))
+	track := r.Track()
+	if track == nil {
+		_, err := m.ReplyText(c, F(chatID, "room_no_active"), nil)
+		return err
+	}
+
+	title := utils.EscapeHTML(utils.ShortTitle(track.Title, 25))
 	sender, _ := m.GetUser(c)
 	mention := mentionOf(sender, m.SenderID())
 

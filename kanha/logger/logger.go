@@ -116,16 +116,6 @@ func GetLogger(name string) *Logger {
 	return l
 }
 
-// SetLevel sets the minimum level of the default logger.
-func SetLevel(level Level) {
-	defaultLogger.SetLevel(level)
-}
-
-// GetLevel returns the current level of the default logger.
-func GetLevel() Level {
-	return defaultLogger.GetLevel()
-}
-
 // SetOutput sets the output writer used by the default logger, all existing
 // named loggers and any logger created later. A nil writer defaults to
 // os.Stderr.
@@ -208,13 +198,6 @@ func (ctx *Logger) SetOutput(w io.Writer) {
 		w = os.Stderr
 	}
 	ctx.w = w
-}
-
-// GetOutput returns the current output writer.
-func (ctx *Logger) GetOutput() any {
-	ctx.mu.Lock()
-	defer ctx.mu.Unlock()
-	return ctx.w
 }
 
 func (ctx *Logger) Debug(message ...any) {

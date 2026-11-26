@@ -68,6 +68,9 @@ func (r *RoomState) Play(t *state.Track, path string, force ...bool) error {
 	}
 
 	if r.track != t {
+		if r.track != nil {
+			r.releaseFile()
+		}
 		r.loop = 0
 	}
 	r.track = t
@@ -327,6 +330,11 @@ func (r *RoomState) SetSpeed(speed float64) error {
 	}
 
 	r.mu.Lock()
+	prevSpeed := r.speed
+	prevPlaying := r.playing
+	prevPaused := r.paused
+	prevMuted := r.muted
+	prevUpdatedAt := r.updatedAt
 	r.updatePosition()
 	r.speed = speed
 	r.playing = true
@@ -341,6 +349,13 @@ func (r *RoomState) SetSpeed(speed float64) error {
 			DropRoom(r.ID)
 			return fmt.Errorf("the voice chat has ended")
 		}
+		r.mu.Lock()
+		r.speed = prevSpeed
+		r.playing = prevPlaying
+		r.paused = prevPaused
+		r.muted = prevMuted
+		r.updatedAt = prevUpdatedAt
+		r.mu.Unlock()
 		return err
 	}
 
@@ -404,7 +419,18 @@ func (r *RoomState) Unmute() (bool, error) {
 }
 
 func (r *RoomState) play() error {
-	desc := getMediaDescription(r.filePath, r.position, r.speed, r.track.Video)
+	r.mu.RLock()
+	if r.track == nil {
+		r.mu.RUnlock()
+		return fmt.Errorf("no active track")
+	}
+	filePath := r.filePath
+	pos := r.position
+	speed := r.speed
+	isVideo := r.track.Video
+	r.mu.RUnlock()
+
+	desc := getMediaDescription(filePath, pos, speed, isVideo)
 	return r.Assistant.Ntg.Play(r.ID, desc)
 }
 

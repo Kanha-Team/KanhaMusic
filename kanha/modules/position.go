@@ -67,18 +67,19 @@ func handlePosition(c *td.Client, m *td.Message, cplay bool) error {
 		return err
 	}
 
-	if !r.Active() || r.Track().ID == "" {
+	track := r.Track()
+	if !r.Active() || track == nil || track.ID == "" {
 		_, err := m.ReplyText(c, F(chatID, "room_no_active"), nil)
 		return err
 	}
 
 	r.Parse()
 
-	title := utils.EscapeHTML(utils.ShortTitle(r.Track().Title, 25))
+	title := utils.EscapeHTML(utils.ShortTitle(track.Title, 25))
 	_, rerr := m.ReplyText(c, F(chatID, "position_now", locales.Arg{
 		"title":    title,
 		"position": utils.FormatDuration(r.Position()),
-		"duration": utils.FormatDuration(r.Track().Duration),
+		"duration": utils.FormatDuration(track.Duration),
 		"speed":    fmt.Sprintf("%.2f", r.Speed()),
 	}), nil)
 	return rerr

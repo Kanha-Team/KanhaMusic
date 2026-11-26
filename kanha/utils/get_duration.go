@@ -20,6 +20,7 @@ package utils
 import (
 	"bytes"
 	"context"
+	"os"
 	"os/exec"
 	"strconv"
 	"strings"
@@ -79,8 +80,10 @@ func GetDuration(m *td.Message) int {
 			return int(c.VideoNote.Duration)
 		}
 	case *td.MessageDocument:
-		if c.Document != nil {
-			return int(GetDurationByFFProbeSafe(c.Document.FileName))
+		if c.Document != nil && c.Document.FileName != "" {
+			if _, err := os.Stat(c.Document.FileName); err == nil {
+				return GetDurationByFFProbeSafe(c.Document.FileName)
+			}
 		}
 	}
 	return 0

@@ -92,7 +92,10 @@ func (ctx *Context) handleUpdates() {
 					ctx.p2pConfigsMutex.Lock()
 					p2pConfig.GAorB = call.GB
 					ctx.p2pConfigsMutex.Unlock()
-					p2pConfig.WaitData <- nil
+					select {
+					case p2pConfig.WaitData <- nil:
+					default:
+					}
 				}
 			case *tg.PhoneCallObj:
 				if p2pConfig != nil {
@@ -101,8 +104,10 @@ func (ctx *Context) handleUpdates() {
 					p2pConfig.KeyFingerprint = call.KeyFingerprint
 					p2pConfig.PhoneCall = call
 					ctx.p2pConfigsMutex.Unlock()
-					p2pConfig.WaitData <- nil
-
+					select {
+					case p2pConfig.WaitData <- nil:
+					default:
+					}
 				}
 			case *tg.PhoneCallDiscarded:
 				var reasonMessage string
@@ -114,7 +119,10 @@ func (ctx *Context) handleUpdates() {
 					reasonMessage = fmt.Sprintf("call declined by %d", userId)
 				}
 				if p2pConfig != nil {
-					p2pConfig.WaitData <- errors.New(reasonMessage)
+					select {
+					case p2pConfig.WaitData <- errors.New(reasonMessage):
+					default:
+					}
 				}
 				ctx.inputCallsMutex.Lock()
 				delete(ctx.inputCalls, userId)
@@ -149,10 +157,15 @@ func (ctx *Context) handleUpdates() {
 	ctx.app.AddRawHandler(
 		&tg.UpdateGroupCallParticipants{},
 		func(m tg.Update, c *tg.Client) error {
-			participantsUpdate := m.(*tg.UpdateGroupCallParticipants)
-			chatId, err := ctx.convertGroupCallId(
-				participantsUpdate.Call.(*tg.InputGroupCallObj).ID,
-			)
+			participantsUpdate, ok := m.(*tg.UpdateGroupCallParticipants)
+			if !ok {
+				return nil
+			}
+			callObj, ok := participantsUpdate.Call.(*tg.InputGroupCallObj)
+			if !ok {
+				return nil
+			}
+			chatId, err := ctx.convertGroupCallId(callObj.ID)
 			if err != nil {
 				return nil
 			}
@@ -243,7 +256,7 @@ func (ctx *Context) handleUpdates() {
 					updates = append(updates, update)
 				}
 
-				if participantId == ctx.self.ID {
+				if ctx.self != nil && participantId == ctx.self.ID {
 					selfUpdate = participant
 				}
 			}
@@ -376,7 +389,7 @@ func (ctx *Context) handleUpdates() {
 			channels, err := ctx.app.PhoneGetGroupCallStreamChannels(
 				inputGroupCall,
 			)
-			if err == nil {
+			if err == nil && channels != nil && len(channels.Channels) > 0 {
 				_ = ctx.binding.SendBroadcastTimestamp(
 					chatId,
 					channels.Channels[0].LastTimestampMs,
@@ -418,9 +431,11 @@ func (ctx *Context) handleUpdates() {
 					if secondsWait == 0 {
 						status = ntgcalls.SegmentStatusResyncNeeded
 					}
-				} else {
-					data = file.(*tg.UploadFileObj).Bytes
+				} else if uploadObj, ok := file.(*tg.UploadFileObj); ok {
+					data = uploadObj.Bytes
 					status = ntgcalls.SegmentStatusSuccess
+				} else {
+					status = ntgcalls.SegmentStatusResyncNeeded
 				}
 
 				_ = ctx.binding.SendBroadcastPart(
@@ -450,14 +465,23 @@ func (ctx *Context) handleUpdates() {
 			ctx.waitConnectMutex.RUnlock()
 
 			if waitChan != nil {
+				var sendErr error
+				send := true
 				switch state.State {
 				case ntgcalls.Connected:
-					waitChan <- nil
+					sendErr = nil
 				case ntgcalls.Closed, ntgcalls.Failed:
-					waitChan <- ErrConnectionFailed
+					sendErr = ErrConnectionFailed
 				case ntgcalls.Timeout:
-					waitChan <- ErrConnectionTimeout
+					sendErr = ErrConnectionTimeout
 				default:
+					send = false
+				}
+				if send {
+					select {
+					case waitChan <- sendErr:
+					default:
+					}
 				}
 			}
 		},

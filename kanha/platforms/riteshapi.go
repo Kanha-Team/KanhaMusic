@@ -391,26 +391,6 @@ func parseDurationString(durStr string) int {
 // Official Ritesh API Endpoints (https://www.riteshyt.in/docs)
 // ============================================================================
 
-// RiteshHealth checks system health status via GET /health endpoint.
-func RiteshHealth() (bool, error) {
-	apiURL := getRiteshBaseURL()
-	reqURL := apiURL + "/health"
-
-	var resp struct {
-		Status string `json:"status"`
-	}
-
-	rResp, err := rc.R().
-		SetTimeout(5*time.Second).
-		SetHeader("User-Agent", "KanhaMusic/1.0").
-		SetResult(&resp).
-		Get(reqURL)
-	if err != nil {
-		return false, err
-	}
-	return !rResp.IsStatusFailure() && (resp.Status == "ok" || resp.Status == "healthy"), nil
-}
-
 // RiteshSearch searches YouTube for tracks via GET /search?q={query}&limit={limit}&api_key={api_key}.
 func RiteshSearch(query string, limit int) ([]*state.Track, error) {
 	if config.RiteshAPIKey == "" {
@@ -588,54 +568,6 @@ func RiteshPlaylist(linkOrID string, limit int) ([]*state.Track, error) {
 		})
 	}
 	return tracks, nil
-}
-
-// RiteshVideoInfo retrieves technical format lists and media metadata via GET /video_info?vidid={vidid}&api_key={api_key}.
-func RiteshVideoInfo(vidid string) (map[string]any, error) {
-	if config.RiteshAPIKey == "" {
-		return nil, errors.New("riteshapi: api key is not configured")
-	}
-
-	apiURL := getRiteshBaseURL()
-	reqURL := fmt.Sprintf("%s/video_info?vidid=%s&api_key=%s",
-		apiURL, url.QueryEscape(strings.TrimSpace(vidid)), url.QueryEscape(config.RiteshAPIKey))
-
-	var resp map[string]any
-	rResp, err := rc.R().
-		SetHeader("User-Agent", "KanhaMusic/1.0").
-		SetResult(&resp).
-		Get(reqURL)
-	if err != nil {
-		return nil, sanitizeAPIError(err, config.RiteshAPIKey)
-	}
-	if rResp.IsStatusFailure() {
-		return nil, fmt.Errorf("ritesh video_info failed with HTTP %d", rResp.StatusCode())
-	}
-	return resp, nil
-}
-
-// RiteshMusicBotPlayURL returns the direct high-speed redirect stream URL for voice chats via GET /api/musicbot/play/{vidid}?api_key={api_key}.
-func RiteshMusicBotPlayURL(vidid string) string {
-	apiURL := getRiteshBaseURL()
-	return fmt.Sprintf("%s/api/musicbot/play/%s?api_key=%s",
-		apiURL, url.PathEscape(strings.TrimSpace(vidid)), url.QueryEscape(config.RiteshAPIKey))
-}
-
-// RiteshDownloadURL returns the direct download/streaming endpoint URL via GET /download?query={query}&dl_type={audio|video}&quality={quality}&api_key={api_key}.
-func RiteshDownloadURL(query, dlType, quality string) string {
-	apiURL := getRiteshBaseURL()
-	if dlType == "" {
-		dlType = "audio"
-	}
-	if quality == "" {
-		if dlType == "audio" {
-			quality = "320k"
-		} else {
-			quality = "720p"
-		}
-	}
-	return fmt.Sprintf("%s/download?query=%s&dl_type=%s&quality=%s&api_key=%s",
-		apiURL, url.QueryEscape(strings.TrimSpace(query)), url.QueryEscape(dlType), url.QueryEscape(quality), url.QueryEscape(config.RiteshAPIKey))
 }
 
 // RiteshExtractPlatform extracts media from 90+ social/streaming platforms via GET /api/platform/extract?url={url}&api_key={api_key}.

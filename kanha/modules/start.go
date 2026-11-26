@@ -56,9 +56,13 @@ func startHandler(c *td.Client, m *td.Message) error {
 }
 
 func startCaption(c *td.Client, chatID int64, sender *td.User, fallbackID int64) string {
+	botName := ""
+	if c.Me != nil {
+		botName = td.Mention(c.Me.FirstName, c.Me.Id, true, true)
+	}
 	return F(chatID, "start_private", locales.Arg{
 		"user": mentionOf(sender, fallbackID),
-		"bot":  td.Mention(c.Me.FirstName, c.Me.Id, true, true),
+		"bot":  botName,
 	})
 }
 

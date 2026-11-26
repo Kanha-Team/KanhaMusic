@@ -71,6 +71,12 @@ func handleMute(c *td.Client, m *td.Message, cplay bool) error {
 		return err
 	}
 
+	track := r.Track()
+	if track == nil {
+		_, err := m.ReplyText(c, F(chatID, "room_no_active"), nil)
+		return err
+	}
+
 	sender, _ := m.GetUser(c)
 	mention := mentionOf(sender, m.SenderID())
 
@@ -83,7 +89,7 @@ func handleMute(c *td.Client, m *td.Message, cplay bool) error {
 		return err
 	}
 	_, rerr := m.ReplyText(c, F(chatID, "mute_success", locales.Arg{
-		"title": utils.EscapeHTML(utils.ShortTitle(r.Track().Title, 25)),
+		"title": utils.EscapeHTML(utils.ShortTitle(track.Title, 25)),
 		"user":  mention,
 	}), nil)
 	return rerr

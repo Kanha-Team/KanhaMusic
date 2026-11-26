@@ -594,7 +594,7 @@ func finalizePlayReply(
 			r.SetStatusMsg(replyMsg)
 		}
 
-		if len(tracks) > 1 {
+		if len(tracks) > 1 && replyMsg != nil {
 			replyMsg.ReplyText(
 				c,
 				buildMultiAddedText(

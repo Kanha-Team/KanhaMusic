@@ -157,29 +157,35 @@ func (s *autoLeaveService) loop(stop chan struct{}) {
 		case <-stop:
 			return
 		case <-ticker.C:
-			s.runCycle()
+			s.runCycle(stop)
 		}
 	}
 }
 
 // runCycle scans every assistant's chats and leaves the inactive ones.
-func (s *autoLeaveService) runCycle() {
+func (s *autoLeaveService) runCycle(stop <-chan struct{}) {
 	activeRooms := core.AllRooms()
 	core.Assistants.ForEach(func(a *core.Assistant) {
 		if a == nil || a.Client == nil {
 			return
 		}
-		go s.leaveInactiveChats(a, activeRooms)
+		go s.leaveInactiveChats(a, activeRooms, stop)
 	})
 }
 
 func (s *autoLeaveService) leaveInactiveChats(
 	ass *core.Assistant,
 	activeRooms map[int64]*core.RoomState,
+	stop <-chan struct{},
 ) {
 	left := 0
 
 	err := ass.Client.IterDialogs(func(d *tg.TLDialog) error {
+		select {
+		case <-stop:
+			return tg.ErrStopIteration
+		default:
+		}
 		chatID := d.GetChannelID()
 		if d.IsUser() || chatID == 0 || chatID == config.LoggerID {
 			return nil
@@ -188,7 +194,11 @@ func (s *autoLeaveService) leaveInactiveChats(
 			return nil
 		}
 
-		time.Sleep(s.preLeaveDelay)
+		select {
+		case <-stop:
+			return tg.ErrStopIteration
+		case <-time.After(s.preLeaveDelay):
+		}
 		if err := ass.Client.LeaveChannel(chatID); err != nil {
 			if wait := tg.GetFloodWait(err); wait > 0 {
 				logger.Errorf("FloodWait detected (%ds). Sleeping...", wait)

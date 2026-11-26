@@ -83,14 +83,20 @@ func handlePause(c *td.Client, m *td.Message, cplay bool) error {
 		return err
 	}
 
+	track := r.Track()
+	if track == nil {
+		_, err := m.ReplyText(c, F(chatID, "room_no_active"), nil)
+		return err
+	}
+
 	sender, _ := m.GetUser(c)
 	mention := mentionOf(sender, m.SenderID())
-	title := utils.EscapeHTML(utils.ShortTitle(r.Track().Title, 25))
+	title := utils.EscapeHTML(utils.ShortTitle(track.Title, 25))
 
 	msg := F(chatID, "pause_success", locales.Arg{
 		"title":    title,
 		"position": utils.FormatDuration(r.Position()),
-		"duration": utils.FormatDuration(r.Track().Duration),
+		"duration": utils.FormatDuration(track.Duration),
 		"user":     mention,
 	})
 

@@ -103,7 +103,7 @@ func logsHandler(c *td.Client, m *td.Message) error {
 }
 
 func shellHandler(c *td.Client, m *td.Message) error {
-	if m.SenderID() != config.OwnerID {
+	if config.OwnerID == 0 || m.SenderID() != config.OwnerID {
 		return nil
 	}
 	cmd := m.Args()
@@ -216,22 +216,28 @@ func jsonHandle(c *td.Client, m *td.Message) error {
 	}
 
 	if len(jsonString) > 4095 {
-		defer os.Remove("message.json")
-		tmpFile, err := os.Create("message.json")
+		tmpFile, err := os.CreateTemp("", "message-*.json")
 		if err != nil {
 			_, err := m.ReplyText(c, "Error: "+err.Error(), html)
 			return err
 		}
+		tmpPath := tmpFile.Name()
+		defer os.Remove(tmpPath)
 
-		_, err = tmpFile.Write(jsonString)
-		if err != nil {
-			_, err := m.ReplyText(c, "Error: "+err.Error(), html)
+		_, writeErr := tmpFile.Write(jsonString)
+		closeErr := tmpFile.Close()
+		if writeErr != nil {
+			_, err := m.ReplyText(c, "Error: "+writeErr.Error(), html)
+			return err
+		}
+		if closeErr != nil {
+			_, err := m.ReplyText(c, "Error: "+closeErr.Error(), html)
 			return err
 		}
 
 		_, err = m.ReplyDocument(
 			c,
-			&td.InputFileLocal{Path: tmpFile.Name()},
+			&td.InputFileLocal{Path: tmpPath},
 			&td.SendDocumentOpts{Caption: "Message JSON"},
 		)
 		if err != nil {

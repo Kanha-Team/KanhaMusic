@@ -1,6 +1,8 @@
 package ubot
 
 import (
+	"fmt"
+
 	tg "github.com/amarnathcjd/gogram/telegram"
 )
 
@@ -9,11 +11,14 @@ func (ctx *Context) getP2PConfigs(GAorB []byte) (*P2PConfig, error) {
 	if err != nil {
 		return nil, err
 	}
-	dhConfig := dhConfigRaw.(*tg.MessagesDhConfigObj)
+	dhConfig, ok := dhConfigRaw.(*tg.MessagesDhConfigObj)
+	if !ok {
+		return nil, fmt.Errorf("unexpected dh config type %T", dhConfigRaw)
+	}
 	return &P2PConfig{
 		DhConfig:   dhConfig,
 		IsOutgoing: GAorB == nil,
 		GAorB:      GAorB,
-		WaitData:   make(chan error),
+		WaitData:   make(chan error, 1),
 	}, nil
 }

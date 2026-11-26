@@ -38,7 +38,7 @@ import (
 )
 
 func evalCommandHandler(c *td.Client, m *td.Message) error {
-	if m.SenderID() != config.OwnerID {
+	if config.OwnerID == 0 || m.SenderID() != config.OwnerID {
 		return nil
 	}
 
@@ -175,17 +175,31 @@ func main() {
 	}
 
 	if len(output) > 4095 {
-		file, _ := os.Create("output.txt")
-		defer file.Close()
-		io.WriteString(file, output)
+		file, ferr := os.CreateTemp("", "eval-output-*.txt")
+		if ferr != nil {
+			_, rerr := m.ReplyText(c, "Error: "+ferr.Error(), html)
+			return rerr
+		}
+		tmpPath := file.Name()
+		defer os.Remove(tmpPath)
+
+		_, werr := io.WriteString(file, output)
+		cerr := file.Close()
+		if werr != nil {
+			_, rerr := m.ReplyText(c, "Error: "+werr.Error(), html)
+			return rerr
+		}
+		if cerr != nil {
+			_, rerr := m.ReplyText(c, "Error: "+cerr.Error(), html)
+			return rerr
+		}
 		if _, rerr := m.ReplyDocument(
 			c,
-			&td.InputFileLocal{Path: file.Name()},
+			&td.InputFileLocal{Path: tmpPath},
 			&td.SendDocumentOpts{Caption: "Output"},
 		); rerr != nil {
 			return rerr
 		}
-		os.Remove(file.Name())
 		return nil
 	}
 	_, rerr := m.ReplyText(
